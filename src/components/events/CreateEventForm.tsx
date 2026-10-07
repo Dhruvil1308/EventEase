@@ -2,7 +2,7 @@
 
 import { animate, stagger } from "animejs";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type CSSProperties, type FormEvent } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { TiltCard } from "@/components/motion/TiltCard";
 import { useAnimeScope } from "@/components/motion/useAnimeScope";
 import { Button } from "@/components/ui/Button";
@@ -73,6 +73,20 @@ export function CreateEventForm() {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const shouldReset = useRef(false);
+
+  // Next.js keeps this page alive after we navigate to the new event; clear the
+  // form when it is hidden so "Create" starts blank next time.
+  useLayoutEffect(() => {
+    return () => {
+      if (!shouldReset.current) return;
+      shouldReset.current = false;
+      setForm({ name: "", description: "", venue: "", startsAt: "", capacity: "100", theme: "aurora" });
+      setErrors({});
+      setFormError(null);
+      setSubmitting(false);
+    };
+  }, []);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((f) => ({ ...f, [key]: value }));
@@ -134,6 +148,7 @@ export function CreateEventForm() {
         setSubmitting(false);
         return;
       }
+      shouldReset.current = true;
       router.push(`/events/${data.event.id}?created=1`);
     } catch {
       setFormError("Network error — check your connection and try again.");

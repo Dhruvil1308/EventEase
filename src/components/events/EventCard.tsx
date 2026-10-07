@@ -92,7 +92,7 @@ export function EventCard({ event, now }: { event: EventSummary; now: number }) 
             </span>
             <span className="flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-cyan" />
-              {stats.remaining} seats left
+              {stats.remaining} {stats.remaining === 1 ? "seat" : "seats"} left
             </span>
           </div>
         </div>

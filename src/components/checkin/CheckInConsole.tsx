@@ -57,6 +57,27 @@ export function CheckInConsole({
   const busyRef = useRef(false);
   const feedback = useGateFeedback(sound);
 
+  // The gate page stays alive between navigations (React <Activity>). When it is
+  // opened again with a different ticket or event, or with fresh counts from the
+  // server, take those over instead of showing the previous visit's values.
+  const [seenProps, setSeenProps] = useState({ events, initialEventId, initialCode });
+  if (
+    seenProps.events !== events ||
+    seenProps.initialEventId !== initialEventId ||
+    seenProps.initialCode !== initialCode
+  ) {
+    setSeenProps({ events, initialEventId, initialCode });
+    setEventStats(Object.fromEntries(events.map((e) => [e.id, e.stats])));
+    if (initialEventId !== seenProps.initialEventId) {
+      setEventId(initialEventId && events.some((e) => e.id === initialEventId) ? initialEventId : "");
+    }
+    if (initialCode !== seenProps.initialCode) {
+      setCode(initialCode ? formatPartialCode(initialCode) : "");
+      setResult(null);
+      setError(null);
+    }
+  }
+
   const selected = events.find((e) => e.id === eventId) ?? null;
   const selectedStats = selected ? eventStats[selected.id] : null;
 

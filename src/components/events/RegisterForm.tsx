@@ -2,7 +2,7 @@
 
 import { animate, stagger, utils } from "animejs";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type FormEvent } from "react";
+import { useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { useAnimeScope } from "@/components/motion/useAnimeScope";
 import { Button } from "@/components/ui/Button";
 import { InputField } from "@/components/ui/Field";
@@ -18,6 +18,27 @@ export function RegisterForm({ eventId, seatsLeft, closed, closedReason }: Props
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [state, setState] = useState<"idle" | "submitting" | "done" | "full">(closed ? "full" : "idle");
+  const shouldReset = useRef(false);
+
+  // Seats can run out while this page is kept alive in the background.
+  const [seenClosed, setSeenClosed] = useState(closed);
+  if (closed !== seenClosed) {
+    setSeenClosed(closed);
+    setState(closed ? "full" : "idle");
+  }
+
+  // After a successful registration we navigate to the ticket. Next.js keeps this
+  // page alive, so clear the form when it is hidden — the next visit starts fresh.
+  useLayoutEffect(() => {
+    return () => {
+      if (!shouldReset.current) return;
+      shouldReset.current = false;
+      setValues({ name: "", email: "", studentId: "", department: "" });
+      setErrors({});
+      setFormError(null);
+      setState("idle");
+    };
+  }, []);
 
   const root = useAnimeScope<HTMLDivElement>(({ root, reduced }) => {
     if (reduced) return;
@@ -99,6 +120,7 @@ export function RegisterForm({ eventId, seatsLeft, closed, closedReason }: Props
         return;
       }
       setState("done");
+      shouldReset.current = true;
       celebrate();
       setTimeout(() => router.push(`${data.ticketUrl}?new=1`), 900);
     } catch {

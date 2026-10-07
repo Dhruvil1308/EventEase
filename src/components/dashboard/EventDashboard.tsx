@@ -2,7 +2,7 @@
 
 import { animate, stagger } from "animejs";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { RESULT_META } from "@/components/checkin/resultMeta";
 import { AnimatedNumber } from "@/components/motion/CountUp";
 import { useAnimeScope } from "@/components/motion/useAnimeScope";
@@ -43,6 +43,13 @@ export function EventDashboard({ event, initial }: { event: EventSummary; initia
   const searchParams = useSearchParams();
   const justCreated = searchParams.get("created") === "1";
   const [live, setLive] = useState(initial);
+  // Next.js keeps visited pages alive (React <Activity>), so this component can
+  // come back with old state. Adopt each fresh server snapshot when it arrives.
+  const [snapshot, setSnapshot] = useState(initial);
+  if (initial !== snapshot) {
+    setSnapshot(initial);
+    setLive(initial);
+  }
   const [online, setOnline] = useState(true);
   const [busyCode, setBusyCode] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast>(null);
@@ -83,13 +90,25 @@ export function EventDashboard({ event, initial }: { event: EventSummary; initia
         start();
       } else stop();
     };
+    // Fetch right away on first mount and every time the page is shown again
+    // after navigating away, instead of waiting for the first poll.
+    const kickoff = setTimeout(refresh, 0);
     start();
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
+      clearTimeout(kickoff);
       stop();
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [refresh]);
+
+  // Don't bring back a half-finished delete confirmation or an old toast.
+  useLayoutEffect(() => {
+    return () => {
+      setConfirmDelete(false);
+      setToast(null);
+    };
+  }, []);
 
   const showToast = (t: NonNullable<Toast>) => {
     setToast(t);
@@ -190,7 +209,13 @@ export function EventDashboard({ event, initial }: { event: EventSummary; initia
               <Badge tone={online ? "success" : "warn"} dot={online}>
                 {online ? "Live" : "Reconnecting…"}
               </Badge>
-              {isFull ? <Badge tone="danger">Full</Badge> : <Badge tone="info">{stats.remaining} seats left</Badge>}
+              {isFull ? (
+                <Badge tone="danger">Full</Badge>
+              ) : (
+                <Badge tone="info">
+                  {stats.remaining} {stats.remaining === 1 ? "seat" : "seats"} left
+                </Badge>
+              )}
             </div>
             <h1 className="mt-5 font-display text-3xl leading-tight font-bold text-white sm:text-5xl">{event.name}</h1>
             <p className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-zinc-300" suppressHydrationWarning>
@@ -260,7 +285,7 @@ export function EventDashboard({ event, initial }: { event: EventSummary; initia
               <p className="text-xs tracking-widest text-zinc-500 uppercase">Registered</p>
               <p className="mt-1 font-display text-xl font-semibold text-white">{percent(stats.fillRate)} full</p>
               <p className="mt-1 text-sm text-zinc-400">
-                <AnimatedNumber value={stats.remaining} /> seats remaining
+                <AnimatedNumber value={stats.remaining} /> {stats.remaining === 1 ? "seat" : "seats"} remaining
               </p>
             </div>
           </div>
