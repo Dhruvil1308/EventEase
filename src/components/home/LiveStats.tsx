@@ -37,7 +37,10 @@ export async function LiveStats() {
       <Reveal stagger={100} className="relative mt-8 grid grid-cols-2 gap-6 md:grid-cols-4">
         {TILES.map((t) => (
           <div key={t.key}>
-            <CountUp value={stats[t.key]} className={`block font-display text-4xl font-bold sm:text-5xl ${t.color}`} />
+            <CountUp
+              value={stats[t.key]}
+              className={`block font-display text-4xl font-extrabold tracking-tight tabular-nums sm:text-5xl ${t.color}`}
+            />
             <p className="mt-2 text-sm text-zinc-400">{t.label}</p>
           </div>
         ))}

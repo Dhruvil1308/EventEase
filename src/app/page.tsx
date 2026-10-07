@@ -61,7 +61,7 @@ export default function HomePage() {
             <SplitText
               as="h2"
               text="Upcoming events"
-              className="mt-4 block font-display text-3xl font-semibold text-white sm:text-5xl"
+              className="mt-4 block font-display text-3xl font-bold tracking-tight text-white sm:text-5xl"
             />
           </div>
           <Reveal variant="right">

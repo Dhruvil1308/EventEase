@@ -27,7 +27,7 @@ export function ProblemSolution() {
         <SplitText
           as="h2"
           text="Spreadsheets weren't built for the front door."
-          className="mt-4 block font-display text-3xl leading-tight font-semibold text-white sm:text-5xl"
+          className="mt-4 block font-display text-3xl leading-tight font-bold tracking-tight text-white sm:text-5xl"
         />
         <Reveal as="p" variant="blur" delay={150} className="mt-5 text-lg text-zinc-400">
           Disconnected forms and sheets cause duplicate entries and slow check-ins. EventEase keeps registration and

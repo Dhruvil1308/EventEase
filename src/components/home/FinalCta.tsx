@@ -19,7 +19,7 @@ export function FinalCta() {
             aria-hidden
             className="absolute top-0 left-1/2 h-64 w-[36rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet/40 blur-3xl"
           />
-          <h2 className="relative mx-auto max-w-2xl font-display text-3xl leading-tight font-bold text-white sm:text-5xl">
+          <h2 className="relative mx-auto max-w-2xl font-display text-3xl leading-tight font-bold tracking-tight text-white sm:text-5xl">
             Your next event, <span className="text-gradient">without the queue.</span>
           </h2>
           <p className="relative mx-auto mt-5 max-w-xl text-zinc-400">

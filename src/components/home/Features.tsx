@@ -71,7 +71,7 @@ export function Features() {
         <SplitText
           as="h2"
           text="Everything a front door needs."
-          className="mt-4 block font-display text-3xl leading-tight font-semibold text-white sm:text-5xl"
+          className="mt-4 block font-display text-3xl leading-tight font-bold tracking-tight text-white sm:text-5xl"
         />
       </div>
 

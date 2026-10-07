@@ -18,12 +18,10 @@ export function Hero() {
     if (reduced) return;
 
     createTimeline({ defaults: { ease: "out(4)", duration: 1100 } })
-      .add(q("[data-hero='badge']"), { opacity: [0, 1], y: [20, 0], scale: [0.9, 1] })
-      .add(q("[data-hero-line]"), { y: ["115%", "0%"], rotate: [4, 0], duration: 1300, delay: stagger(120) }, "-=800")
+      .add(q("[data-hero-line]"), { y: ["115%", "0%"], rotate: [4, 0], duration: 1300, delay: stagger(120) })
       .add(q("[data-hero='copy']"), { opacity: [0, 1], filter: ["blur(12px)", "blur(0px)"], y: [20, 0] }, "-=900")
       .add(q("[data-hero='cta'] > *"), { opacity: [0, 1], y: [24, 0], delay: stagger(100) }, "-=850")
-      .add(q("[data-hero='proof'] > *"), { opacity: [0, 1], x: [-16, 0], delay: stagger(90) }, "-=800")
-      .add(q("[data-hero='scroll']"), { opacity: [0, 1], y: [-10, 0] }, "-=600");
+      .add(q("[data-hero='proof'] > *"), { opacity: [0, 1], x: [-16, 0], delay: stagger(90) }, "-=800");
 
     // Scroll-linked parallax: content drifts up and fades as the hero leaves,
     // and comes back exactly as you scroll up.
@@ -36,13 +34,6 @@ export function Hero() {
         autoplay: onScroll({ target: root, enter: "top top", leave: "top bottom", sync: 0.25 }),
       });
     }
-    animate(q("[data-hero='scroll'] [data-dot]"), {
-      y: [0, 12],
-      opacity: [1, 0],
-      duration: 1400,
-      loop: true,
-      ease: "inOut(2)",
-    });
   });
 
   return (
@@ -55,19 +46,7 @@ export function Hero() {
 
       <div data-hero-content className="relative z-10 mx-auto w-full max-w-6xl px-6">
         <div className="max-w-2xl">
-          <div
-            data-hero="badge"
-            data-intro
-            className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium text-zinc-300 glass"
-          >
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-70" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
-            </span>
-            Built for college fests, workshops &amp; hackathons
-          </div>
-
-          <h1 className="mt-6 font-display text-[2.35rem] leading-[1.04] font-bold tracking-tight text-white sm:text-6xl lg:text-[4.4rem]">
+          <h1 className="font-display text-[2.6rem] leading-[1.02] font-extrabold tracking-[-0.035em] text-white sm:text-[4.1rem] lg:text-[4.9rem]">
             <span className="block overflow-hidden pb-1">
               <span data-hero-line className="block">
                 Register fast.
@@ -141,17 +120,6 @@ export function Hero() {
             ))}
           </dl>
         </div>
-      </div>
-
-      <div
-        data-hero="scroll"
-        data-intro
-        className="absolute bottom-8 left-1/2 z-10 hidden -translate-x-1/2 flex-col items-center gap-2 text-[11px] tracking-[0.25em] text-zinc-500 uppercase sm:flex"
-      >
-        <span className="flex h-9 w-5 justify-center rounded-full border border-white/20 pt-1.5">
-          <span data-dot className="h-1.5 w-1 rounded-full bg-cyan" />
-        </span>
-        Scroll
       </div>
     </section>
   );
