@@ -8,12 +8,15 @@ if (!databaseUrl) {
 }
 
 function createPrismaClient() {
-  // Supabase terminates idle connections, and serverless invocations are short
-  // lived, so keep the pool small and let it drain quickly.
+  // Every connection here is a slot on Supabase's pooler, and a serverless
+  // deployment runs many instances at once — so each instance keeps a small
+  // pool. Locally a slightly larger one keeps the seed and tests brisk.
   const adapter = new PrismaPg({
     connectionString: databaseUrl,
-    max: 5,
+    max: Number(process.env.DATABASE_POOL_MAX ?? (process.env.VERCEL ? 1 : 5)),
     idleTimeoutMillis: 10_000,
+    // The database is remote; fail fast rather than hanging a request.
+    connectionTimeoutMillis: 10_000,
   });
   return new PrismaClient({ adapter });
 }

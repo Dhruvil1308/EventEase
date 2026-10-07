@@ -237,67 +237,95 @@ async function main() {
     const { registrations, checkedIn, ...data } = spec;
     const event = await prisma.event.create({ data: { ...data, hostId } });
 
-    const regs = [];
+    // Build every row in memory first, then insert in batches. One round trip
+    // per batch instead of one per row — the database is remote, so this is the
+    // difference between a two-minute seed and a two-second one.
+    const profileRows: {
+      id: string;
+      email: string;
+      name: string;
+      role: "ATTENDEE";
+      studentId: string;
+      department: string;
+    }[] = [];
+    const regRows: {
+      id: string;
+      eventId: string;
+      userId: string;
+      name: string;
+      email: string;
+      studentId: string;
+      department: string;
+      code: string;
+      createdAt: Date;
+      checkedInAt: Date | null;
+    }[] = [];
+    const logRows: {
+      result: string;
+      code: string;
+      eventId: string;
+      registrationId: string;
+      createdAt: Date;
+    }[] = [];
+
     for (let i = 0; i < registrations; i++) {
-      const p = person(personIndex++);
+      const person_ = person(personIndex++);
       const createdAt = new Date(Date.now() - (registrations - i) * 47 * 60_000);
 
       // The first seats of each event go to the demo attendees so their
       // dashboard has real tickets to show.
       const demoId = demoAttendeeIds[i];
       const demo = demoId ? DEMO_ATTENDEES[i] : null;
-      const userId =
-        demoId ??
-        (
-          await prisma.profile.create({
-            data: {
-              id: randomUUID(),
-              email: p.email,
-              name: p.name,
-              role: "ATTENDEE",
-              studentId: p.studentId,
-              department: p.department,
-            },
-          })
-        ).id;
-
-      regs.push(
-        await prisma.registration.create({
-          data: {
-            eventId: event.id,
-            userId,
-            name: demo?.name ?? p.name,
-            email: demo?.email ?? p.email,
-            studentId: demo?.studentId ?? p.studentId,
-            department: demo?.department ?? p.department,
-            code: generateEntryCode(),
-            createdAt,
-          },
-        }),
-      );
-    }
-
-    // Simulate the gate for events that are already running.
-    for (let i = 0; i < checkedIn; i++) {
-      const reg = regs[i];
-      const time = new Date(Date.now() - (checkedIn - i) * 2.5 * 60_000);
-      await prisma.registration.update({ where: { id: reg.id }, data: { checkedInAt: time } });
-      await prisma.checkInLog.create({
-        data: { result: "SUCCESS", code: reg.code, eventId: event.id, registrationId: reg.id, createdAt: time },
-      });
-      if (i % 7 === 3) {
-        // Someone tries to reuse a ticket a few minutes later.
-        await prisma.checkInLog.create({
-          data: {
-            result: "DUPLICATE",
-            code: reg.code,
-            eventId: event.id,
-            registrationId: reg.id,
-            createdAt: new Date(time.getTime() + 4 * 60_000),
-          },
+      let userId = demoId;
+      if (!userId) {
+        userId = randomUUID();
+        profileRows.push({
+          id: userId,
+          email: person_.email,
+          name: person_.name,
+          role: "ATTENDEE",
+          studentId: person_.studentId,
+          department: person_.department,
         });
       }
+
+      // Simulate the gate for events that are already running.
+      const attended = i < checkedIn;
+      const checkedInAt = attended ? new Date(Date.now() - (checkedIn - i) * 2.5 * 60_000) : null;
+      const id = randomUUID();
+      const code = generateEntryCode();
+
+      regRows.push({
+        id,
+        eventId: event.id,
+        userId,
+        name: demo?.name ?? person_.name,
+        email: demo?.email ?? person_.email,
+        studentId: demo?.studentId ?? person_.studentId,
+        department: demo?.department ?? person_.department,
+        code,
+        createdAt,
+        checkedInAt,
+      });
+
+      if (attended && checkedInAt) {
+        logRows.push({ result: "SUCCESS", code, eventId: event.id, registrationId: id, createdAt: checkedInAt });
+        if (i % 7 === 3) {
+          // Someone tries to reuse a ticket a few minutes later.
+          logRows.push({
+            result: "DUPLICATE",
+            code,
+            eventId: event.id,
+            registrationId: id,
+            createdAt: new Date(checkedInAt.getTime() + 4 * 60_000),
+          });
+        }
+      }
     }
+
+    if (profileRows.length) await prisma.profile.createMany({ data: profileRows });
+    if (regRows.length) await prisma.registration.createMany({ data: regRows });
+    if (logRows.length) await prisma.checkInLog.createMany({ data: logRows });
     if (checkedIn > 0) {
       await prisma.checkInLog.create({
         data: {

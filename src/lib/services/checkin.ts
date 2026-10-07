@@ -1,3 +1,4 @@
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { normalizeEntryCode } from "@/lib/codes";
 import { buildStats, getEventCounts, type EventStats } from "./events";
@@ -186,21 +187,32 @@ export type ActivityItem = {
 };
 
 export async function recentActivity(eventId?: string, take = 12, hostId?: string): Promise<ActivityItem[]> {
-  const logs = await prisma.checkInLog.findMany({
-    where: eventId ? { eventId } : hostId ? { event: { hostId } } : undefined,
-    orderBy: { createdAt: "desc" },
-    take,
-    include: {
-      registration: { select: { name: true } },
-      event: { select: { name: true } },
-    },
-  });
-  return logs.map((l) => ({
+  // Prisma's relation `include` would fire one query per relation. The feed is
+  // polled every few seconds against a remote database, so it is a single join.
+  const scope = eventId
+    ? Prisma.sql`WHERE l."eventId" = ${eventId}`
+    : hostId
+      ? Prisma.sql`WHERE ev."hostId" = ${hostId}::uuid`
+      : Prisma.empty;
+
+  const rows = await prisma.$queryRaw<
+    { id: string; result: string; code: string; name: string | null; eventName: string | null; createdAt: Date }[]
+  >`
+    SELECT l.id, l.result, l.code, l."createdAt",
+           r.name AS "name", ev.name AS "eventName"
+    FROM "CheckInLog" l
+    LEFT JOIN "Registration" r ON r.id = l."registrationId"
+    LEFT JOIN "Event" ev ON ev.id = l."eventId"
+    ${scope}
+    ORDER BY l."createdAt" DESC
+    LIMIT ${take}`;
+
+  return rows.map((l) => ({
     id: l.id,
     result: l.result as CheckInStatus,
     code: l.code,
-    name: l.registration?.name ?? null,
-    eventName: l.event?.name ?? null,
+    name: l.name,
+    eventName: l.eventName,
     createdAt: l.createdAt.toISOString(),
   }));
 }

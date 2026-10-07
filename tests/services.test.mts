@@ -1,28 +1,20 @@
 /**
- * Integration tests for the core flows against a throw-away Postgres schema on
- * the configured database: capacity, duplicate registrations, check-in exactly
- * once (incl. races), and the host/attendee ownership rules.
+ * Integration tests for the core flows: capacity, duplicate registrations,
+ * check-in exactly once (incl. races), and the host/attendee ownership rules.
  *
- * Each run creates its own `test_<id>` schema and drops it afterwards, so it
- * never touches application data.
+ * These run against the database in DATABASE_URL. Prisma qualifies every query
+ * with `"public"` when using a driver adapter, so a separate schema cannot
+ * isolate them — instead every row this file creates hangs off a Profile it
+ * created, and `after()` deletes those profiles. The schema cascades from
+ * Profile to Event to Registration to CheckInLog, so nothing is left behind.
  */
 import "dotenv/config";
 import assert from "node:assert/strict";
-import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { after, before, describe, it } from "node:test";
 
-const base = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
-if (!base) throw new Error("Set DATABASE_URL (and ideally DIRECT_URL) before running the tests.");
+if (!process.env.DATABASE_URL) throw new Error("Set DATABASE_URL before running the tests.");
 
-const schema = `test_${randomUUID().replace(/-/g, "").slice(0, 12)}`;
-const url = `${base}${base.includes("?") ? "&" : "?"}schema=${schema}`;
-process.env.DATABASE_URL = url;
-process.env.DIRECT_URL = url;
-
-execSync("npx prisma migrate deploy", { stdio: "ignore", env: process.env });
-
-// Import after DATABASE_URL is set so the Prisma client points at the test schema.
 const { prisma } = await import("../src/lib/prisma");
 const { createEvent, getEventStats } = await import("../src/lib/services/events");
 const { registerParticipant, getTicket } = await import("../src/lib/services/registrations");
@@ -40,19 +32,25 @@ const slug = (s: string) =>
     .replace(/[^a-z0-9]+/g, ".")
     .replace(/^\.|\.$/g, "");
 
+/** Every profile this run creates, so `after()` can remove them all. */
+const created: string[] = [];
+const startedAt = new Date();
+
 /** A fresh attendee account. Tickets are always bound to one of these. */
 async function attendee(label: string) {
   const id = randomUUID();
-  const email = `${slug(label)}.${id.slice(0, 8)}@campus.edu`;
+  const email = `${slug(label)}.${id.slice(0, 8)}@uat.invalid`;
   await prisma.profile.create({ data: { id, email, name: label, role: "ATTENDEE" } });
+  created.push(id);
   return { id, email };
 }
 
 async function host(name: string) {
   const id = randomUUID();
   await prisma.profile.create({
-    data: { id, email: `${slug(name)}.${id.slice(0, 8)}@host.edu`, name, role: "HOST" },
+    data: { id, email: `${slug(name)}.${id.slice(0, 8)}@uat.invalid`, name, role: "HOST" },
   });
+  created.push(id);
   return id;
 }
 
@@ -67,7 +65,11 @@ describe("EventEase core flows", () => {
     OTHER_HOST = await host("Other Host");
   });
   after(async () => {
-    await prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+    // Deleting the profiles cascades to their events, registrations and logs.
+    await prisma.profile.deleteMany({ where: { id: { in: created } } });
+    // Scans of unknown codes are logged against no event, so they cannot
+    // cascade — remove the ones this run produced.
+    await prisma.checkInLog.deleteMany({ where: { eventId: null, createdAt: { gte: startedAt } } });
     await prisma.$disconnect();
   });
 

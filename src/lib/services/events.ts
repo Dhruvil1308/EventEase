@@ -66,40 +66,69 @@ function toSummary(event: EventRow, registered: number, checkedIn: number): Even
   };
 }
 
-/** Registered + checked-in counts per event in a single grouped query. */
-async function countsByEvent(eventIds?: string[]) {
-  const rows = await prisma.registration.groupBy({
-    by: ["eventId"],
-    where: eventIds ? { eventId: { in: eventIds } } : undefined,
-    _count: { _all: true, checkedInAt: true },
-  });
-  return new Map(rows.map((r) => [r.eventId, { registered: r._count._all, checkedIn: r._count.checkedInAt }]));
-}
+/**
+ * One row per event, with its host's name and both counts already aggregated.
+ *
+ * Prisma's `include` issues a second query for the relation and `groupBy` a
+ * third, which costs three sequential round trips. The database is remote, so
+ * each one is real latency — a single join answers the whole thing in one.
+ */
+type SummaryRow = {
+  id: string;
+  name: string;
+  description: string;
+  venue: string;
+  startsAt: Date;
+  capacity: number;
+  theme: string;
+  createdAt: Date;
+  hostId: string;
+  hostName: string;
+  registered: number;
+  checkedIn: number;
+};
+
+const rowToSummary = (r: SummaryRow): EventSummary =>
+  toSummary({ ...r, host: { name: r.hostName } }, r.registered, r.checkedIn);
 
 export async function listEvents(): Promise<EventSummary[]> {
-  const [events, counts] = await Promise.all([
-    prisma.event.findMany({ orderBy: { startsAt: "asc" }, include: { host: { select: { name: true } } } }),
-    countsByEvent(),
-  ]);
-  return events.map((e) => {
-    const c = counts.get(e.id);
-    return toSummary(e, c?.registered ?? 0, c?.checkedIn ?? 0);
-  });
+  const rows = await prisma.$queryRaw<SummaryRow[]>`
+    SELECT e.id, e.name, e.description, e.venue, e."startsAt", e.capacity, e.theme,
+           e."createdAt", e."hostId", p.name AS "hostName",
+           COALESCE(c.registered, 0)::int AS registered,
+           COALESCE(c."checkedIn", 0)::int AS "checkedIn"
+    FROM "Event" e
+    JOIN "Profile" p ON p.id = e."hostId"
+    LEFT JOIN (
+      SELECT "eventId", COUNT(*)::int AS registered, COUNT("checkedInAt")::int AS "checkedIn"
+      FROM "Registration" GROUP BY "eventId"
+    ) c ON c."eventId" = e.id
+    ORDER BY e."startsAt" ASC`;
+  return rows.map(rowToSummary);
 }
 
 export async function getEventSummary(id: string): Promise<EventSummary | null> {
-  const event = await prisma.event.findUnique({ where: { id }, include: { host: { select: { name: true } } } });
-  if (!event) return null;
-  const counts = await getEventCounts(id);
-  return toSummary(event, counts.registered, counts.checkedIn);
+  const rows = await prisma.$queryRaw<SummaryRow[]>`
+    SELECT e.id, e.name, e.description, e.venue, e."startsAt", e.capacity, e.theme,
+           e."createdAt", e."hostId", p.name AS "hostName",
+           COALESCE(c.registered, 0)::int AS registered,
+           COALESCE(c."checkedIn", 0)::int AS "checkedIn"
+    FROM "Event" e
+    JOIN "Profile" p ON p.id = e."hostId"
+    LEFT JOIN (
+      SELECT "eventId", COUNT(*)::int AS registered, COUNT("checkedInAt")::int AS "checkedIn"
+      FROM "Registration" WHERE "eventId" = ${id} GROUP BY "eventId"
+    ) c ON c."eventId" = e.id
+    WHERE e.id = ${id}`;
+  return rows[0] ? rowToSummary(rows[0]) : null;
 }
 
 export async function getEventCounts(eventId: string) {
-  const [registered, checkedIn] = await Promise.all([
-    prisma.registration.count({ where: { eventId } }),
-    prisma.registration.count({ where: { eventId, checkedInAt: { not: null } } }),
-  ]);
-  return { registered, checkedIn };
+  // One scan instead of two queries: `COUNT(col)` skips NULLs.
+  const [row] = await prisma.$queryRaw<{ registered: number; checkedIn: number }[]>`
+    SELECT COUNT(*)::int AS registered, COUNT("checkedInAt")::int AS "checkedIn"
+    FROM "Registration" WHERE "eventId" = ${eventId}`;
+  return { registered: row?.registered ?? 0, checkedIn: row?.checkedIn ?? 0 };
 }
 
 export async function getEventStats(eventId: string): Promise<EventStats | null> {
@@ -129,18 +158,22 @@ export async function deleteEvent(id: string, hostId: string) {
   }
 }
 
-/** Every event this host owns, newest first. */
+/** Every event this host owns — same single-join shape as `listEvents`. */
 export async function listEventsForHost(hostId: string): Promise<EventSummary[]> {
-  const events = await prisma.event.findMany({
-    where: { hostId },
-    orderBy: { startsAt: "asc" },
-    include: { host: { select: { name: true } } },
-  });
-  const counts = await countsByEvent(events.map((e) => e.id));
-  return events.map((e) => {
-    const c = counts.get(e.id);
-    return toSummary(e, c?.registered ?? 0, c?.checkedIn ?? 0);
-  });
+  const rows = await prisma.$queryRaw<SummaryRow[]>`
+    SELECT e.id, e.name, e.description, e.venue, e."startsAt", e.capacity, e.theme,
+           e."createdAt", e."hostId", p.name AS "hostName",
+           COALESCE(c.registered, 0)::int AS registered,
+           COALESCE(c."checkedIn", 0)::int AS "checkedIn"
+    FROM "Event" e
+    JOIN "Profile" p ON p.id = e."hostId"
+    LEFT JOIN (
+      SELECT "eventId", COUNT(*)::int AS registered, COUNT("checkedInAt")::int AS "checkedIn"
+      FROM "Registration" GROUP BY "eventId"
+    ) c ON c."eventId" = e.id
+    WHERE e."hostId" = ${hostId}::uuid
+    ORDER BY e."startsAt" ASC`;
+  return rows.map(rowToSummary);
 }
 
 /** Totals across everything this host runs, for the host dashboard header. */

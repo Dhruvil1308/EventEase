@@ -99,13 +99,31 @@ export async function getRegistrationFor(eventId: string, userId: string) {
   return prisma.registration.findUnique({ where: { eventId_userId: { eventId, userId } } });
 }
 
-/** Every ticket an attendee holds, with its event — powers the attendee dashboard. */
-export async function listRegistrationsForUser(userId: string) {
-  return prisma.registration.findMany({
-    where: { userId },
-    orderBy: { event: { startsAt: "asc" } },
-    include: { event: { include: { host: { select: { name: true } } } } },
-  });
+export type UserTicketRow = {
+  code: string;
+  checkedInAt: Date | null;
+  eventId: string;
+  eventName: string;
+  venue: string;
+  startsAt: Date;
+  theme: string;
+  hostName: string;
+};
+
+/**
+ * Every ticket an attendee holds, with its event — powers the attendee
+ * dashboard. Nested `include`s would cost three round trips; this is one join.
+ */
+export async function listRegistrationsForUser(userId: string): Promise<UserTicketRow[]> {
+  return prisma.$queryRaw<UserTicketRow[]>`
+    SELECT r.code, r."checkedInAt",
+           e.id AS "eventId", e.name AS "eventName", e.venue, e."startsAt", e.theme,
+           p.name AS "hostName"
+    FROM "Registration" r
+    JOIN "Event" e ON e.id = r."eventId"
+    JOIN "Profile" p ON p.id = e."hostId"
+    WHERE r."userId" = ${userId}::uuid
+    ORDER BY e."startsAt" ASC`;
 }
 
 export async function getTicket(rawCode: string) {

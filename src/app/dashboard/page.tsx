@@ -22,12 +22,12 @@ async function MyTickets() {
     code: r.code,
     checkedInAt: r.checkedInAt?.toISOString() ?? null,
     event: {
-      id: r.event.id,
-      name: r.event.name,
-      venue: r.event.venue,
-      startsAt: r.event.startsAt.toISOString(),
-      theme: r.event.theme,
-      hostName: r.event.host?.name ?? "EventEase host",
+      id: r.eventId,
+      name: r.eventName,
+      venue: r.venue,
+      startsAt: r.startsAt.toISOString(),
+      theme: r.theme,
+      hostName: r.hostName,
     },
   }));
 

@@ -25,26 +25,33 @@ export const SIGN_IN_FOR: Record<Role, string> = {
 /**
  * The signed-in user's profile, or null.
  *
- * `getUser()` revalidates the JWT against Supabase rather than trusting the
- * cookie, so this is safe to gate on. Wrapped in `cache` so the many server
- * components on a page share one lookup per request.
+ * `getClaims()` verifies the access token's signature locally against the
+ * project's published JWKS, so it is as trustworthy as `getUser()` but costs no
+ * network round trip — and this runs on every request, including the navbar.
+ * Wrapped in `cache` so the many server components on a page share one lookup.
  */
 export const getCurrentProfile = cache(async (): Promise<SessionProfile | null> => {
-  // Reading the session is request data (cookies, and Supabase checks token
-  // expiry against the clock), so this can never be part of a prerender.
+  // Reading the session is request data (cookies, and the token is checked
+  // against the clock), so this can never be part of a prerender.
   await connection();
 
   const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.auth.getClaims();
+  const claims = error ? null : data?.claims;
+  const userId = typeof claims?.sub === "string" ? claims.sub : null;
+  if (!userId) return null;
+
+  const profile = await prisma.profile.findUnique({ where: { id: userId } });
+  if (profile) return profile;
+
+  // No profile row for a valid token — only reachable if account creation was
+  // interrupted. This is rare, so pay for the authoritative lookup here rather
+  // than trusting claims to resurrect a profile for a deleted account.
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const profile = await prisma.profile.findUnique({ where: { id: user.id } });
-  if (profile) return profile;
-
-  // The auth user exists but its profile row doesn't — only reachable if account
-  // creation was interrupted. Rebuild it from the signup metadata.
   const meta = (user.user_metadata ?? {}) as { name?: string; role?: string };
   const role = meta.role === Role.HOST ? Role.HOST : Role.ATTENDEE;
   return prisma.profile.create({
@@ -87,8 +94,14 @@ export async function requireAttendee(destination?: string): Promise<SessionProf
 
 /** A host that owns this event, 404-style redirect otherwise. */
 export async function requireEventOwner(eventId: string): Promise<SessionProfile> {
-  const profile = await requireHost(`/events/${eventId}`);
-  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { hostId: true } });
+  // The two lookups don't depend on each other, so they share one round trip.
+  const [profile, event] = await Promise.all([
+    getCurrentProfile(),
+    prisma.event.findUnique({ where: { id: eventId }, select: { hostId: true } }),
+  ]);
+
+  if (!profile) redirect(`${SIGN_IN_FOR[Role.HOST]}${nextParam(`/events/${eventId}`)}`);
+  if (profile.role !== Role.HOST) redirect(`${HOME_FOR[profile.role]}?denied=host`);
   if (!event) redirect("/host?missing=1");
   if (event.hostId !== profile.id) redirect("/host?denied=owner");
   return profile;

@@ -36,10 +36,13 @@ export async function proxy(request: NextRequest) {
     },
   );
 
-  // Refreshes the access token when it has expired; must run before any check.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getSession() refreshes the access token when it has expired — and makes no
+  // network call when it hasn't. getClaims() then verifies the token's signature
+  // locally against the cached JWKS, so a navigation costs no auth round trip.
+  await supabase.auth.getSession();
+  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+  const claims = claimsError ? null : claimsData?.claims;
+  const user = typeof claims?.sub === "string" ? { id: claims.sub, user_metadata: claims.user_metadata } : null;
 
   const path = request.nextUrl.pathname;
   const needsHost =

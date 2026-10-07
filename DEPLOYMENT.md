@@ -29,26 +29,33 @@ Re-create them any time with `npm run db:seed`.
 
 ## 2. One thing you must do before deploying
 
-**Vercel cannot reach Supabase's direct database host.** `db.<ref>.supabase.co` resolves to IPv6
-only, and Vercel's functions don't have IPv6 egress. Local development works because this machine
-does have IPv6 — production will not.
+**Nothing may use Supabase's direct host.** `db.<ref>.supabase.co` resolves to IPv6 only, and
+neither Vercel's functions nor most local networks have IPv6 egress — this project's own local
+connection broke partway through development for exactly that reason.
 
-So `DATABASE_URL` on Vercel must be the **Transaction pooler** connection string:
+Both URLs therefore go through the pooler, which is IPv4. This project is in **ap-northeast-2**,
+so the already-working values are:
 
-1. Supabase dashboard → **Project Settings → Database → Connection string**
-2. Choose the **Transaction pooler** tab (port `6543`)
-3. Copy it and replace `[YOUR-PASSWORD]` with your database password
-4. Append `?pgbouncer=true&connection_limit=1` — the transaction pooler doesn't support prepared
-   statements, and serverless functions should hold one connection each
-
-The result looks like:
+| Variable       | Pooler      | Port   | Purpose               |
+| -------------- | ----------- | ------ | --------------------- |
+| `DATABASE_URL` | Transaction | `6543` | All runtime queries   |
+| `DIRECT_URL`   | Session     | `5432` | `prisma migrate` only |
 
 ```
-postgresql://postgres.<project-ref>:<password>@aws-X-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1
+DATABASE_URL="postgresql://postgres.<project-ref>:<password>@aws-0-ap-northeast-2.pooler.supabase.com:6543/postgres?pgbouncer=true"
+DIRECT_URL="postgresql://postgres.<project-ref>:<password>@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres"
 ```
 
-`DIRECT_URL` stays on the direct host (port `5432`) — it is only used by `prisma migrate`, which
-you run from your machine, never from Vercel.
+The exact strings, with the password filled in, are already in your local `.env` — copy them
+straight into Vercel.
+
+> If you ever need to find these again: Supabase dashboard → **Project Settings → Database →
+> Connection string**, then the **Transaction pooler** and **Session pooler** tabs. The username is
+> `postgres.<project-ref>`, not plain `postgres`.
+
+**Pool size.** Each serverless instance keeps its own connection pool, and they all share the
+pooler's slots. `src/lib/prisma.ts` therefore uses a pool of 1 on Vercel (detected via the `VERCEL`
+env var) and 5 locally. Override with `DATABASE_POOL_MAX` if needed.
 
 ---
 

@@ -31,10 +31,13 @@ export async function requireApiRole(role: Role): Promise<ApiGate> {
 
 /** A host that owns this specific event. */
 export async function requireApiEventOwner(eventId: string): Promise<ApiGate> {
-  const gate = await requireApiRole(Role.HOST);
+  // Independent lookups, so one round trip instead of two.
+  const [gate, event] = await Promise.all([
+    requireApiRole(Role.HOST),
+    prisma.event.findUnique({ where: { id: eventId }, select: { hostId: true } }),
+  ]);
   if ("response" in gate) return gate;
 
-  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { hostId: true } });
   if (!event) {
     return { response: apiError(404, "EVENT_NOT_FOUND", "This event doesn't exist.") };
   }
