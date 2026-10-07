@@ -27,7 +27,7 @@ Re-create them any time with `npm run db:seed`.
 
 ---
 
-## 2. One thing you must do before deploying
+## 2. Database connection — never use the direct host
 
 **Nothing may use Supabase's direct host.** `db.<ref>.supabase.co` resolves to IPv6 only, and
 neither Vercel's functions nor most local networks have IPv6 egress — this project's own local
@@ -81,14 +81,55 @@ The exact values are in your local `.env`, which is gitignored and must stay tha
 
 ## 4. Deploy
 
-No `vercel.json` is needed — Vercel detects Next.js automatically.
+The repo is already configured for Vercel. You should not need to change any
+build settings.
 
-- **Build command**: `next build` (default)
-- **Install command**: `npm install` (default). `postinstall` runs `prisma generate`, so the
-  client is built against the schema on every deploy.
-- **Node version**: 20.19+, 22.12+ or 24+ (set in `package.json` → `engines`)
+### What's in the repo for this
 
-Then either connect the GitHub repo at [vercel.com/new](https://vercel.com/new), or:
+| File                           | Why it matters                                                                                                                   |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `vercel.json`                  | Pins functions to **`icn1` (Seoul)** — see below. Declares the Next.js framework.                                                |
+| `.vercelignore`                | Keeps tests, docs and screenshots out of the upload.                                                                             |
+| `package.json` → `postinstall` | Runs `prisma generate` on every install, so the client always matches the schema. The generated client is gitignored on purpose. |
+| `src/lib/prisma.ts`            | Creates the client lazily and uses a pool of **1** when `VERCEL` is set.                                                         |
+| `next.config.ts`               | Security headers, and `typescript.ignoreBuildErrors: false` so a type error fails the deploy instead of shipping.                |
+
+### Run the functions in Seoul
+
+This is the single biggest thing you can do for speed. Supabase is in
+**ap-northeast-2 (Seoul)**, and one database round trip across the Pacific costs
+~140ms. Vercel defaults to `iad1` (Washington DC), which would add that latency
+to _every_ query on _every_ page.
+
+`vercel.json` pins functions to `icn1`, Vercel's Seoul region, putting them in the
+same city as the database:
+
+```json
+{ "regions": ["icn1"] }
+```
+
+Expect production to feel noticeably faster than local development, because
+locally every query still crosses the ocean. A single region is available on the
+Hobby plan; if you ever move the Supabase project, change this to match.
+
+### Environment variables
+
+Add the five variables from section 3 **before the first deploy**, for
+Production, Preview and Development. The build itself succeeds without them
+(the Prisma client is lazy), but every page would then error at request time.
+
+### Deploy
+
+- **Build command**: `next build` (default — leave it blank)
+- **Install command**: `npm install` (default)
+- **Output**: auto-detected
+- **Node version**: 20.19+, 22.12+ or 24+ (from `package.json` → `engines`)
+
+Do **not** add `prisma migrate deploy` to the build command. Migrations run from
+your machine (section 5), so a deploy can never half-migrate production.
+
+Either import the GitHub repo at [vercel.com/new](https://vercel.com/new) — pushes
+to `main` then deploy automatically — or:
 
 ```bash
 npm i -g vercel
@@ -96,7 +137,13 @@ vercel link
 vercel --prod
 ```
 
----
+### After the first deploy
+
+1. Open the deployment URL and sign in as `host@eventease.demo`.
+2. Check `/host` loads with its 4 events — that proves the pooler URL works.
+3. Run one check-in at `/checkin` to confirm writes work.
+4. If the camera doesn't appear on a phone, confirm you're on **https** —
+   `getUserMedia` is blocked on insecure origins. Vercel URLs are always https.
 
 ## 5. Schema changes after launch
 

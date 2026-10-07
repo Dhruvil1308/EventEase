@@ -1,0 +1,9 @@
+# Keep the deployment upload small — none of this runs in production.
+tests
+test-results
+playwright-report
+docs
+*.md
+!README.md
+prisma/*.db
+prisma/*.db-journal
