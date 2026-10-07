@@ -1,0 +1,66 @@
+// EventEase — data model
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Event {
+  id          String   @id @default(cuid())
+  name        String
+  description String   @default("")
+  venue       String
+  startsAt    DateTime
+  capacity    Int
+  // Visual theme used for cards, tickets and the 3D accents (see src/lib/themes.ts)
+  theme       String   @default("aurora")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  registrations Registration[]
+  checkInLogs   CheckInLog[]
+
+  @@index([startsAt])
+}
+
+model Registration {
+  id          String    @id @default(cuid())
+  eventId     String
+  name        String
+  // Stored lower-cased so the same person can't register twice with different casing
+  email       String
+  studentId   String?
+  department  String?
+  // Human-friendly unique entry code, also encoded in the QR (e.g. EE-7K2M-Q9XD)
+  code        String    @unique
+  checkedInAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  event       Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  checkInLogs CheckInLog[]
+
+  @@unique([eventId, email])
+  @@index([eventId, checkedInAt])
+}
+
+// Every scan / manual entry at the gate is recorded, including rejected ones,
+// so organizers can audit duplicate or invalid attempts.
+model CheckInLog {
+  id             String   @id @default(cuid())
+  // SUCCESS | DUPLICATE | INVALID | WRONG_EVENT
+  result         String
+  code           String
+  eventId        String?
+  registrationId String?
+  createdAt      DateTime @default(now())
+
+  event        Event?        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  registration Registration? @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, createdAt])
+}

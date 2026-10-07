@@ -1,0 +1,51 @@
+import type { Metadata, Viewport } from "next";
+import { JetBrains_Mono, Manrope, Unbounded } from "next/font/google";
+import { BackgroundFX } from "@/components/layout/BackgroundFX";
+import { Footer } from "@/components/layout/Footer";
+import { Navbar } from "@/components/layout/Navbar";
+import { ScrollProgress } from "@/components/layout/ScrollProgress";
+import "./globals.css";
+
+const manrope = Manrope({ variable: "--font-manrope", subsets: ["latin"], display: "swap" });
+const unbounded = Unbounded({ variable: "--font-unbounded", subsets: ["latin"], display: "swap" });
+const jetbrains = JetBrains_Mono({ variable: "--font-jetbrains", subsets: ["latin"], display: "swap" });
+
+export const metadata: Metadata = {
+  title: {
+    default: "EventEase — College event registration & check-in",
+    template: "%s · EventEase",
+  },
+  description:
+    "Create events with a capacity, register participants with unique QR entry codes, and check them in at the gate in a second — duplicates rejected automatically.",
+  applicationName: "EventEase",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#04040b",
+  colorScheme: "dark",
+};
+
+export default function RootLayout({ children }: LayoutProps<"/">) {
+  return (
+    <html lang="en" className={`${manrope.variable} ${unbounded.variable} ${jetbrains.variable}`}>
+      <body className="grain font-sans antialiased">
+        <noscript>
+          <style>{`[data-reveal="self"],[data-reveal="group"]>*,[data-intro]{opacity:1!important}[data-hero-line]{transform:none!important}`}</style>
+        </noscript>
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[80] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-ink-950"
+        >
+          Skip to content
+        </a>
+        <BackgroundFX />
+        <ScrollProgress />
+        <Navbar />
+        <main id="main" className="relative z-10 overflow-x-clip">
+          {children}
+        </main>
+        <Footer />
+      </body>
+    </html>
+  );
+}
