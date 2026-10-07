@@ -1,6 +1,7 @@
 import { connection, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { apiError, handleApiError } from "@/lib/api";
+import { requireApiEventOwner } from "@/lib/api-auth";
 
 /** Byte-order mark so Excel opens the UTF-8 CSV with the right encoding. */
 const UTF8_BOM = "\uFEFF";
@@ -12,10 +13,12 @@ function csvCell(value: string | null | undefined) {
   return `"${safe.replace(/"/g, '""')}"`;
 }
 
-/** GET /api/events/:id/export — attendance sheet as CSV. */
+/** GET /api/events/:id/export — attendance sheet as CSV. Owning host only. */
 export async function GET(_request: NextRequest, ctx: RouteContext<"/api/events/[id]/export">) {
   await connection();
   const { id } = await ctx.params;
+  const gate = await requireApiEventOwner(id);
+  if ("response" in gate) return gate.response;
   try {
     const event = await prisma.event.findUnique({
       where: { id },

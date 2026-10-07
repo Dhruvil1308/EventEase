@@ -15,9 +15,15 @@ export function eventStatus(event: EventSummary, now: number) {
   return { label: "Open", tone: "success" as const };
 }
 
-export function EventCard({ event, now }: { event: EventSummary; now: number }) {
+/** Who is looking at the card. Drives which actions it offers. */
+export type CardViewer = { id: string; role: "ATTENDEE" | "HOST" } | null;
+
+export function EventCard({ event, now, viewer }: { event: EventSummary; now: number; viewer?: CardViewer }) {
   const status = eventStatus(event, now);
   const { stats } = event;
+  const owns = viewer?.role === "HOST" && viewer.id === event.hostId;
+  const isHost = viewer?.role === "HOST";
+  const closed = status.label === "Full" || status.label === "Ended";
 
   return (
     <TiltCard className="h-full rounded-3xl" max={7}>
@@ -44,7 +50,10 @@ export function EventCard({ event, now }: { event: EventSummary; now: number }) 
 
         <div className="relative mt-5 flex-1 [transform:translateZ(20px)]">
           <h3 className="font-display text-lg leading-snug font-semibold text-white">
-            <Link href={`/events/${event.id}`} className="after:absolute after:inset-0 after:content-['']">
+            <Link
+              href={owns ? `/events/${event.id}` : `/events/${event.id}/register`}
+              className="after:absolute after:inset-0 after:content-['']"
+            >
               {event.name}
             </Link>
           </h3>
@@ -98,7 +107,26 @@ export function EventCard({ event, now }: { event: EventSummary; now: number }) 
         </div>
 
         <footer className="relative z-10 mt-6 flex [transform:translateZ(25px)] gap-2">
-          {status.label === "Full" || status.label === "Ended" ? (
+          {owns ? (
+            <>
+              <Link
+                href={`/events/${event.id}`}
+                className="flex h-10 flex-1 items-center justify-center rounded-xl bg-theme text-sm font-semibold text-ink-950 transition-transform hover:scale-[1.02] active:scale-95"
+              >
+                Manage
+              </Link>
+              <Link
+                href={`/checkin?event=${event.id}`}
+                className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 text-sm font-medium text-white transition-colors hover:bg-white/10"
+              >
+                Check-in
+              </Link>
+            </>
+          ) : isHost ? (
+            <span className="flex h-10 flex-1 items-center justify-center rounded-xl border border-white/5 bg-white/[0.03] text-sm text-zinc-500">
+              Hosted by {event.hostName}
+            </span>
+          ) : closed ? (
             <span className="flex h-10 flex-1 items-center justify-center rounded-xl border border-white/5 bg-white/[0.03] text-sm text-zinc-500">
               Registration closed
             </span>
@@ -110,12 +138,6 @@ export function EventCard({ event, now }: { event: EventSummary; now: number }) 
               Register
             </Link>
           )}
-          <Link
-            href={`/checkin?event=${event.id}`}
-            className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 text-sm font-medium text-white transition-colors hover:bg-white/10"
-          >
-            Check-in
-          </Link>
         </footer>
       </article>
     </TiltCard>

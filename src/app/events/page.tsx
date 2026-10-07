@@ -7,6 +7,7 @@ import { LinkButton } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { CardGridSkeleton, Skeleton } from "@/components/ui/Skeleton";
 import { getGlobalStats, listEvents } from "@/lib/services/events";
+import { getCurrentProfile } from "@/lib/auth";
 import { requestTime } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Events" };
@@ -42,19 +43,19 @@ async function Overview() {
 async function AllEvents() {
   await connection();
   const now = requestTime();
-  const events = await listEvents();
+  const [events, profile] = await Promise.all([listEvents(), getCurrentProfile()]);
   if (!events.length) {
     return (
       <div className="rounded-3xl px-6 py-20 text-center glass">
         <p className="font-display text-2xl text-white">No events yet</p>
         <p className="mt-2 text-zinc-400">Create your first event to start taking registrations.</p>
-        <LinkButton href="/events/new" className="mt-8">
+        <LinkButton href={profile?.role === "HOST" ? "/events/new" : "/host/signin"} className="mt-8">
           Create an event
         </LinkButton>
       </div>
     );
   }
-  return <EventsBrowser events={events} now={now} />;
+  return <EventsBrowser events={events} now={now} viewer={profile ? { id: profile.id, role: profile.role } : null} />;
 }
 
 export default function EventsPage() {

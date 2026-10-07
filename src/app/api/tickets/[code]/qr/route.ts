@@ -1,6 +1,6 @@
 import { connection, type NextRequest } from "next/server";
-import { getTicket } from "@/lib/services/registrations";
 import { apiError, handleApiError } from "@/lib/api";
+import { resolveTicketAccess } from "@/lib/ticket-access";
 import { qrPng } from "@/lib/qr";
 
 /** GET /api/tickets/:code/qr — downloadable PNG of the ticket's QR code. */
@@ -8,8 +8,13 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/tickets/
   await connection();
   const { code } = await ctx.params;
   try {
-    const ticket = await getTicket(code);
-    if (!ticket) return apiError(404, "TICKET_NOT_FOUND", "No ticket matches this code.");
+    const access = await resolveTicketAccess(code);
+    if (!access.ok) {
+      if (access.reason === "NOT_FOUND") return apiError(404, "TICKET_NOT_FOUND", "No ticket matches this code.");
+      if (access.reason === "UNAUTHORIZED") return apiError(401, "UNAUTHORIZED", "Sign in to view this ticket.");
+      return apiError(403, "FORBIDDEN", "This ticket belongs to someone else.");
+    }
+    const ticket = access.ticket;
     const png = await qrPng(ticket.code);
     const download = request.nextUrl.searchParams.has("download");
     return new Response(new Uint8Array(png), {

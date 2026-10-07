@@ -2,19 +2,42 @@
 
 import { animate, stagger, utils } from "animejs";
 import { useRouter } from "next/navigation";
-import { useLayoutEffect, useRef, useState, type FormEvent } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useAnimeScope } from "@/components/motion/useAnimeScope";
 import { Button } from "@/components/ui/Button";
 import { InputField } from "@/components/ui/Field";
 import { fieldErrors, registerSchema, type FieldErrors } from "@/lib/validation";
 
-type Props = { eventId: string; seatsLeft: number; closed: boolean; closedReason?: string };
+/** The signed-in attendee. The ticket is always issued to this account. */
+export type Attendee = {
+  name: string;
+  email: string;
+  studentId: string | null;
+  department: string | null;
+};
 
-export function RegisterForm({ eventId, seatsLeft, closed, closedReason }: Props) {
+type Props = {
+  eventId: string;
+  attendee: Attendee;
+  seatsLeft: number;
+  closed: boolean;
+  closedReason?: string;
+};
+
+export function RegisterForm({ eventId, attendee, seatsLeft, closed, closedReason }: Props) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const burstRef = useRef<HTMLDivElement>(null);
-  const [values, setValues] = useState({ name: "", email: "", studentId: "", department: "" });
+  const initial = useMemo(
+    () => ({
+      name: attendee.name,
+      email: attendee.email,
+      studentId: attendee.studentId ?? "",
+      department: attendee.department ?? "",
+    }),
+    [attendee.name, attendee.email, attendee.studentId, attendee.department],
+  );
+  const [values, setValues] = useState(initial);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [state, setState] = useState<"idle" | "submitting" | "done" | "full">(closed ? "full" : "idle");
@@ -33,12 +56,12 @@ export function RegisterForm({ eventId, seatsLeft, closed, closedReason }: Props
     return () => {
       if (!shouldReset.current) return;
       shouldReset.current = false;
-      setValues({ name: "", email: "", studentId: "", department: "" });
+      setValues(initial);
       setErrors({});
       setFormError(null);
       setState("idle");
     };
-  }, []);
+  }, [initial]);
 
   const root = useAnimeScope<HTMLDivElement>(({ root, reduced }) => {
     if (reduced) return;
@@ -169,11 +192,12 @@ export function RegisterForm({ eventId, seatsLeft, closed, closedReason }: Props
             type="email"
             label="College email"
             autoComplete="email"
-            placeholder="aisha.khan@campus.edu"
             value={values.email}
-            onChange={(e) => update("email", e.target.value)}
+            readOnly
+            aria-readonly
+            className="cursor-not-allowed text-zinc-400"
             error={errors.email?.[0]}
-            hint="One registration per email for each event."
+            hint="Your ticket is issued to the account you're signed in with — one per event."
           />
         </div>
         <div data-field data-intro className="grid gap-5 sm:grid-cols-2">

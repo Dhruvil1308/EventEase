@@ -49,3 +49,21 @@ export type FieldErrors = Record<string, string[] | undefined>;
 export function fieldErrors(error: z.ZodError): FieldErrors {
   return z.flattenError(error).fieldErrors as FieldErrors;
 }
+
+export const signUpSchema = z.object({
+  name: z.string().trim().min(2, "Enter your full name").max(80, "Name is too long"),
+  email: z.string().trim().toLowerCase().pipe(z.email("Enter a valid email address").max(254, "Email is too long")),
+  password: z.string().min(8, "Use at least 8 characters").max(72, "Passwords can be at most 72 characters"),
+  organization: optionalText(120),
+  studentId: optionalText(40),
+  department: optionalText(80),
+  phone: optionalText(20),
+});
+
+export const signInSchema = z.object({
+  email: z.string().trim().toLowerCase().pipe(z.email("Enter a valid email address")),
+  password: z.string().min(1, "Enter your password"),
+});
+
+export type SignUpInput = z.infer<typeof signUpSchema>;
+export type SignInInput = z.infer<typeof signInSchema>;

@@ -29,7 +29,10 @@ function uniqueViolationFields(error: unknown): string[] | null {
 const mentions = (fields: string[], column: string) =>
   fields.some((f) => f.replace(/[`"]/g, "").toLowerCase().includes(column.toLowerCase()));
 
-export async function registerParticipant(eventId: string, input: RegisterInput) {
+/** Who the ticket belongs to. Always the signed-in attendee — never user input. */
+export type RegisteringUser = { id: string; email: string };
+
+export async function registerParticipant(eventId: string, input: RegisterInput, user: RegisteringUser) {
   const parsed = registerSchema.safeParse(input);
   if (!parsed.success) {
     throw new AppError("VALIDATION_ERROR", "Please fix the highlighted fields.", fieldErrors(parsed.error));
@@ -41,33 +44,46 @@ export async function registerParticipant(eventId: string, input: RegisterInput)
 
   for (let attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt++) {
     try {
-      return await prisma.$transaction(async (tx) => {
-        // Insert first, then verify capacity inside the same transaction.
-        // SQLite serialises writers, so once our insert holds the write lock no
-        // other registration can slip in between the insert and the count —
-        // the event can never be over-booked, even under concurrent requests.
-        const registration = await tx.registration.create({
-          data: {
-            eventId,
-            name: data.name,
-            email: data.email,
-            studentId: data.studentId,
-            department: data.department,
-            code: generateEntryCode(),
-          },
-        });
-        const registered = await tx.registration.count({ where: { eventId } });
-        if (registered > event.capacity) throw new CapacityExceeded();
-        return { ...registration, event };
-      });
+      return await prisma.$transaction(
+        async (tx) => {
+          // Postgres (unlike SQLite) lets concurrent transactions insert and count
+          // without seeing each other, so counting alone would let two people take
+          // the last seat. Locking the event row first serialises registrations for
+          // THIS event only — other events still register in parallel.
+          await tx.$queryRaw`SELECT id FROM "Event" WHERE id = ${eventId} FOR UPDATE`;
+
+          const registered = await tx.registration.count({ where: { eventId } });
+          if (registered >= event.capacity) throw new CapacityExceeded();
+
+          const registration = await tx.registration.create({
+            data: {
+              eventId,
+              userId: user.id,
+              name: data.name,
+              email: user.email,
+              studentId: data.studentId,
+              department: data.department,
+              code: generateEntryCode(),
+            },
+          });
+          return { ...registration, event };
+        },
+        {
+          // Registrations for one event are serialised by the row lock above, so a
+          // burst of sign-ups queues rather than running in parallel. These budgets
+          // let the queue drain instead of failing with an opaque transaction error.
+          maxWait: 10_000,
+          timeout: 15_000,
+        },
+      );
     } catch (error) {
       if (error instanceof CapacityExceeded) {
         throw new AppError("EVENT_FULL", `Sorry — all ${event.capacity} seats for this event are taken.`);
       }
       const fields = uniqueViolationFields(error);
-      if (fields && mentions(fields, "email")) {
-        throw new AppError("ALREADY_REGISTERED", "This email is already registered for this event.", {
-          email: ["This email is already registered for this event."],
+      if (fields && (mentions(fields, "userId") || mentions(fields, "email"))) {
+        throw new AppError("ALREADY_REGISTERED", "You already have a ticket for this event.", {
+          email: ["You already have a ticket for this event."],
         });
       }
       // A code collision: astronomically unlikely, but simply try a fresh code.
@@ -76,6 +92,20 @@ export async function registerParticipant(eventId: string, input: RegisterInput)
     }
   }
   throw new AppError("CODE_GENERATION_FAILED", "Couldn't generate a unique entry code. Please try again.");
+}
+
+/** The ticket this attendee holds for an event, if any. */
+export async function getRegistrationFor(eventId: string, userId: string) {
+  return prisma.registration.findUnique({ where: { eventId_userId: { eventId, userId } } });
+}
+
+/** Every ticket an attendee holds, with its event — powers the attendee dashboard. */
+export async function listRegistrationsForUser(userId: string) {
+  return prisma.registration.findMany({
+    where: { userId },
+    orderBy: { event: { startsAt: "asc" } },
+    include: { event: { include: { host: { select: { name: true } } } } },
+  });
 }
 
 export async function getTicket(rawCode: string) {

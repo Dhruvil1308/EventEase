@@ -4,6 +4,7 @@ import { animate } from "animejs";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { EventSummary } from "@/lib/services/events";
 import { EventGrid } from "./EventGrid";
+import type { CardViewer } from "./EventCard";
 import { eventStatus } from "./EventCard";
 
 const FILTERS = [
@@ -15,7 +16,7 @@ const FILTERS = [
 
 type FilterId = (typeof FILTERS)[number]["id"];
 
-export function EventsBrowser({ events, now }: { events: EventSummary[]; now: number }) {
+export function EventsBrowser({ events, now, viewer }: { events: EventSummary[]; now: number; viewer?: CardViewer }) {
   const [filter, setFilter] = useState<FilterId>("all");
   const [query, setQuery] = useState("");
   const tabs = useRef<HTMLDivElement>(null);
@@ -91,7 +92,7 @@ export function EventsBrowser({ events, now }: { events: EventSummary[]; now: nu
 
       <div className="mt-10">
         {visible.length ? (
-          <EventGrid events={visible} now={now} />
+          <EventGrid events={visible} now={now} viewer={viewer} />
         ) : (
           <div className="rounded-3xl px-6 py-16 text-center glass">
             <p className="font-display text-xl text-white">Nothing here</p>

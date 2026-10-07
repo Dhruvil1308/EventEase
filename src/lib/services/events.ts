@@ -21,6 +21,9 @@ export type EventSummary = {
   startsAt: string;
   theme: string;
   createdAt: string;
+  /** The host account that owns this event. */
+  hostId: string;
+  hostName: string;
   stats: EventStats;
 };
 
@@ -33,6 +36,8 @@ type EventRow = {
   capacity: number;
   theme: string;
   createdAt: Date;
+  hostId: string;
+  host?: { name: string } | null;
 };
 
 export function buildStats(capacity: number, registered: number, checkedIn: number): EventStats {
@@ -55,6 +60,8 @@ function toSummary(event: EventRow, registered: number, checkedIn: number): Even
     startsAt: event.startsAt.toISOString(),
     theme: event.theme,
     createdAt: event.createdAt.toISOString(),
+    hostId: event.hostId,
+    hostName: event.host?.name ?? "EventEase host",
     stats: buildStats(event.capacity, registered, checkedIn),
   };
 }
@@ -71,7 +78,7 @@ async function countsByEvent(eventIds?: string[]) {
 
 export async function listEvents(): Promise<EventSummary[]> {
   const [events, counts] = await Promise.all([
-    prisma.event.findMany({ orderBy: { startsAt: "asc" } }),
+    prisma.event.findMany({ orderBy: { startsAt: "asc" }, include: { host: { select: { name: true } } } }),
     countsByEvent(),
   ]);
   return events.map((e) => {
@@ -81,7 +88,7 @@ export async function listEvents(): Promise<EventSummary[]> {
 }
 
 export async function getEventSummary(id: string): Promise<EventSummary | null> {
-  const event = await prisma.event.findUnique({ where: { id } });
+  const event = await prisma.event.findUnique({ where: { id }, include: { host: { select: { name: true } } } });
   if (!event) return null;
   const counts = await getEventCounts(id);
   return toSummary(event, counts.registered, counts.checkedIn);
@@ -102,18 +109,50 @@ export async function getEventStats(eventId: string): Promise<EventStats | null>
   return buildStats(event.capacity, registered, checkedIn);
 }
 
-export async function createEvent(input: CreateEventInput) {
+export async function createEvent(input: CreateEventInput, hostId: string) {
   const parsed = createEventSchema.safeParse(input);
   if (!parsed.success) {
     throw new AppError("VALIDATION_ERROR", "Please fix the highlighted fields.", fieldErrors(parsed.error));
   }
-  const event = await prisma.event.create({ data: parsed.data });
+  const event = await prisma.event.create({
+    data: { ...parsed.data, hostId },
+    include: { host: { select: { name: true } } },
+  });
   return toSummary(event, 0, 0);
 }
 
-export async function deleteEvent(id: string) {
-  const result = await prisma.event.deleteMany({ where: { id } });
-  if (result.count === 0) throw new AppError("EVENT_NOT_FOUND", "This event no longer exists.");
+/** Deleting is scoped to the owner, so a host can never remove someone else's event. */
+export async function deleteEvent(id: string, hostId: string) {
+  const result = await prisma.event.deleteMany({ where: { id, hostId } });
+  if (result.count === 0) {
+    throw new AppError("EVENT_NOT_FOUND", "This event no longer exists, or it isn't yours to delete.");
+  }
+}
+
+/** Every event this host owns, newest first. */
+export async function listEventsForHost(hostId: string): Promise<EventSummary[]> {
+  const events = await prisma.event.findMany({
+    where: { hostId },
+    orderBy: { startsAt: "asc" },
+    include: { host: { select: { name: true } } },
+  });
+  const counts = await countsByEvent(events.map((e) => e.id));
+  return events.map((e) => {
+    const c = counts.get(e.id);
+    return toSummary(e, c?.registered ?? 0, c?.checkedIn ?? 0);
+  });
+}
+
+/** Totals across everything this host runs, for the host dashboard header. */
+export async function getHostStats(hostId: string): Promise<GlobalStats> {
+  const [events, capacity, registrations, checkIns, duplicatesBlocked] = await Promise.all([
+    prisma.event.count({ where: { hostId } }),
+    prisma.event.aggregate({ where: { hostId }, _sum: { capacity: true } }),
+    prisma.registration.count({ where: { event: { hostId } } }),
+    prisma.registration.count({ where: { event: { hostId }, checkedInAt: { not: null } } }),
+    prisma.checkInLog.count({ where: { result: "DUPLICATE", event: { hostId } } }),
+  ]);
+  return { events, registrations, checkIns, duplicatesBlocked, totalCapacity: capacity._sum.capacity ?? 0 };
 }
 
 export type GlobalStats = {

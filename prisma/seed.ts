@@ -5,13 +5,61 @@
  *   npm run db:seed        (also runs as part of `npm run setup` / `npm run db:reset`)
  */
 import "dotenv/config";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { randomUUID } from "node:crypto";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { createClient } from "@supabase/supabase-js";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { generateEntryCode } from "../src/lib/codes";
 
+if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not set — see .env.example.");
+
 const prisma = new PrismaClient({
-  adapter: new PrismaBetterSqlite3({ url: process.env.DATABASE_URL ?? "file:./prisma/dev.db" }),
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
 });
+
+/** Demo accounts you can actually sign in with after seeding. */
+const DEMO_PASSWORD = "eventease123";
+const DEMO_HOST = { email: "host@eventease.demo", name: "Code Carnival Committee", organization: "Student Council" };
+const DEMO_ATTENDEES = [
+  { email: "aisha@eventease.demo", name: "Aisha Khan", studentId: "21CE045", department: "Computer" },
+  { email: "rahul@eventease.demo", name: "Rahul Mehta", studentId: "21IT112", department: "IT" },
+];
+
+const supabaseConfigured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SECRET_KEY);
+const admin = supabaseConfigured
+  ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+  : null;
+
+/**
+ * Creates (or reuses) a real Supabase auth user so the demo accounts can sign
+ * in. Without Supabase credentials the seed still runs — those profiles just
+ * get a random id and can't be signed into.
+ */
+async function ensureAuthUser(email: string, name: string, role: "HOST" | "ATTENDEE"): Promise<string> {
+  if (!admin) return randomUUID();
+
+  const { data, error } = await admin.auth.admin.createUser({
+    email,
+    password: DEMO_PASSWORD,
+    email_confirm: true,
+    user_metadata: { name, role },
+  });
+  if (!error && data.user) return data.user.id;
+
+  // Already exists from a previous seed — find and reuse it.
+  const { data: list } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  const existing = list?.users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
+  if (existing) {
+    await admin.auth.admin.updateUserById(existing.id, {
+      password: DEMO_PASSWORD,
+      user_metadata: { name, role },
+    });
+    return existing.id;
+  }
+  throw new Error(`Could not create or find the auth user for ${email}: ${error?.message}`);
+}
 
 const HOUR = 3600_000;
 const DAY = 24 * HOUR;
@@ -156,19 +204,75 @@ async function main() {
   await prisma.checkInLog.deleteMany();
   await prisma.registration.deleteMany();
   await prisma.event.deleteMany();
+  await prisma.profile.deleteMany();
+
+  // ── Demo accounts ────────────────────────────────────────────────────────
+  const hostId = await ensureAuthUser(DEMO_HOST.email, DEMO_HOST.name, "HOST");
+  await prisma.profile.create({
+    data: {
+      id: hostId,
+      email: DEMO_HOST.email,
+      name: DEMO_HOST.name,
+      role: "HOST",
+      organization: DEMO_HOST.organization,
+    },
+  });
+
+  const demoAttendeeIds: string[] = [];
+  for (const a of DEMO_ATTENDEES) {
+    const id = await ensureAuthUser(a.email, a.name, "ATTENDEE");
+    await prisma.profile.create({
+      data: { id, email: a.email, name: a.name, role: "ATTENDEE", studentId: a.studentId, department: a.department },
+    });
+    demoAttendeeIds.push(id);
+  }
+  console.log(
+    admin
+      ? `  ✓ demo accounts ready (password: ${DEMO_PASSWORD})`
+      : "  ! Supabase credentials missing — demo profiles created but not signed-in-able",
+  );
 
   let personIndex = 0;
   for (const spec of EVENTS) {
     const { registrations, checkedIn, ...data } = spec;
-    const event = await prisma.event.create({ data });
+    const event = await prisma.event.create({ data: { ...data, hostId } });
 
     const regs = [];
     for (let i = 0; i < registrations; i++) {
       const p = person(personIndex++);
       const createdAt = new Date(Date.now() - (registrations - i) * 47 * 60_000);
+
+      // The first seats of each event go to the demo attendees so their
+      // dashboard has real tickets to show.
+      const demoId = demoAttendeeIds[i];
+      const demo = demoId ? DEMO_ATTENDEES[i] : null;
+      const userId =
+        demoId ??
+        (
+          await prisma.profile.create({
+            data: {
+              id: randomUUID(),
+              email: p.email,
+              name: p.name,
+              role: "ATTENDEE",
+              studentId: p.studentId,
+              department: p.department,
+            },
+          })
+        ).id;
+
       regs.push(
         await prisma.registration.create({
-          data: { ...p, eventId: event.id, code: generateEntryCode(), createdAt },
+          data: {
+            eventId: event.id,
+            userId,
+            name: demo?.name ?? p.name,
+            email: demo?.email ?? p.email,
+            studentId: demo?.studentId ?? p.studentId,
+            department: demo?.department ?? p.department,
+            code: generateEntryCode(),
+            createdAt,
+          },
         }),
       );
     }

@@ -43,22 +43,43 @@ Organizers usually juggle a Google Form for sign-ups and a spreadsheet at the do
 | 3D         | **three.js** + **@react-three/fiber** + **@react-three/drei**: a voxel QR hero that assembles and scatters with scroll, plus a check-in portal                     |
 | Animation  | **anime.js v4**: scroll-synced reveals that play on scroll-down and reverse on scroll-up, split-text, SVG line drawing, count-ups, magnetic buttons, 3D tilt cards |
 | Styling    | **Tailwind CSS v4**, glassmorphism, Unbounded / Manrope / JetBrains Mono fonts                                                                                     |
-| Database   | **SQLite** via **Prisma ORM 7** (`@prisma/adapter-better-sqlite3`)                                                                                                 |
+| Database   | **Supabase Postgres** via **Prisma ORM 7** (`@prisma/adapter-pg`)                                                                                                  |
+| Auth       | **Supabase Auth** — two portals (attendee / host), sessions via `@supabase/ssr` cookies                                                                            |
 | QR         | `qrcode` (generation), native `BarcodeDetector` with a `jsQR` fallback (scanning)                                                                                  |
 | Validation | `zod` (shared by client and server)                                                                                                                                |
 | Testing    | Node test runner (services & codes) and Playwright (end-to-end demo)                                                                                               |
 
 ## Quick start
 
-**Prerequisites:** Node.js `20.19+`, `22.12+` or `24+`, and npm.
+**Prerequisites:** Node.js `20.19+`, `22.12+` or `24+`, npm, and a Supabase project.
 
 ```bash
-npm install          # also generates the Prisma client
-npm run setup        # creates prisma/dev.db, applies migrations, seeds demo data
-npm run dev          # http://localhost:3000
+cp .env.example .env   # fill in your Supabase connection strings and keys
+npm install            # also generates the Prisma client
+npm run db:deploy      # applies migrations to Supabase
+npm run db:seed        # demo events, participants and sign-in-able accounts
+npm run dev            # http://localhost:3000
 ```
 
-There's nothing to configure: the database defaults to `prisma/dev.db`. To change it, copy `.env.example` to `.env`.
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the full Supabase + Vercel setup, including the pooler
+connection string Vercel requires.
+
+### Demo accounts (after seeding)
+
+| Portal   | Email                  | Password       |
+| -------- | ---------------------- | -------------- |
+| Host     | `host@eventease.demo`  | `eventease123` |
+| Attendee | `aisha@eventease.demo` | `eventease123` |
+
+### Two portals
+
+Attendees and hosts are separate accounts with separate sign-in pages:
+
+- **Attendees** (`/signin`) browse events, register, and hold their tickets at `/dashboard`.
+- **Hosts** (`/host/signin`) create events, run the check-in gate, and manage attendance at `/host`.
+
+Nobody can create an event or register without signing in, and a host account is turned away at the
+attendee door (and vice versa).
 
 Seed data: four events (one in progress with live check-ins, one full), about 290 participants, and some gate history. Re-seed at any time with `npm run db:seed`.
 
@@ -90,7 +111,9 @@ Event ──< Registration ──< CheckInLog
 - **No duplicate check-ins.** `checkIn()` in `src/lib/services/checkin.ts` runs
   `UPDATE Registration SET checkedInAt = now WHERE id = ? AND checkedInAt IS NULL`.
   Only one request can flip `checkedInAt` from `NULL`; every other scan gets `DUPLICATE` with the original check-in time. The test suite fires 12 simultaneous scans and asserts exactly one success.
-- **No overbooking.** `registerParticipant()` inserts the registration and then counts seats inside the same transaction, rolling back if the event overflowed. SQLite serializes writers, so this holds under concurrency (tested with 15 simultaneous sign-ups for 5 seats).
+- **No overbooking.** `registerParticipant()` takes a `SELECT … FOR UPDATE` lock on the event row, then counts seats and inserts inside the same transaction. Postgres lets concurrent transactions count without seeing each other, so the row lock is what makes this safe — registrations for one event serialize, while other events proceed in parallel (tested with 15 simultaneous sign-ups for 5 seats).
+- **Tickets are bound to accounts.** A registration always takes its email from the session, never from the request body, so a ticket can't be issued to someone else. One ticket per account per event.
+- **Nothing leaks across hosts.** Participant lists, CSV exports, live counts and the gate are all scoped to the owning host; one host's gate can't admit — or burn — another host's ticket.
 - **No duplicate registrations.** A unique index on `(eventId, email)`, with emails lower-cased and trimmed by zod.
 - **Unique, typo-proof codes.** `EE-XXXX-XXXX` from a 31-character alphabet (≈ 8.5 × 10¹¹ codes), generated with `crypto.getRandomValues` and rejection sampling, protected by a unique index with retry.
 
@@ -147,11 +170,11 @@ curl -s -X POST localhost:3000/api/checkin -H 'content-type: application/json' -
 | `npm run dev`                           | Start the dev server                                                    |
 | `npm run dev:https`                     | Dev server over HTTPS (needed for the camera on other devices)          |
 | `npm run build` / `npm start`           | Production build / serve                                                |
-| `npm run setup`                         | Generate client, apply migrations, seed                                 |
+| `npm run db:deploy`                     | Apply migrations to Supabase                                            |
 | `npm run db:seed`                       | Reset demo data                                                         |
 | `npm run db:migrate`                    | Create a migration after editing the schema                             |
 | `npm run db:studio`                     | Browse the database in Prisma Studio                                    |
-| `npm test`                              | Unit + integration tests (throw-away SQLite DB)                         |
+| `npm test`                              | Unit + integration tests (throw-away Postgres schema)                   |
 | `npm run test:e2e`                      | Playwright end-to-end demo (run `npx playwright install chromium` once) |
 | `npm run lint` / `typecheck` / `format` | Code quality                                                            |
 
@@ -159,5 +182,5 @@ curl -s -X POST localhost:3000/api/checkin -H 'content-type: application/json' -
 
 - **Camera on phones:** browsers only allow camera access on `https://` or `localhost`. To scan with a phone on the same Wi-Fi, run `npm run dev:https` and open the "Network" URL it prints (accept the self-signed certificate). Next.js may also ask you to add that address to [`allowedDevOrigins`](https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins) in `next.config.ts`.
 - **Time zone:** set `NEXT_PUBLIC_TIMEZONE` (e.g. `Asia/Kolkata`) in `.env` to show every time in the venue's time zone.
-- **Deploying:** SQLite needs a persistent disk (e.g. a VM, Railway or Fly.io volume). For serverless hosting, switch the Prisma datasource to Postgres. The service layer doesn't change.
+- **Deploying:** see [DEPLOYMENT.md](DEPLOYMENT.md). Vercel must use Supabase's transaction pooler — its functions can't reach the IPv6-only direct host.
 - **Next steps:** organizer authentication for the dashboard and gate, emailing tickets to participants, waitlists when an event is full.

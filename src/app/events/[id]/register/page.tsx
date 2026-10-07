@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense, type CSSProperties } from "react";
 import { RegisterForm } from "@/components/events/RegisterForm";
@@ -9,6 +9,8 @@ import { ProgressRing } from "@/components/ui/ProgressRing";
 import { PanelSkeleton } from "@/components/ui/Skeleton";
 import { formatFullDate, formatTimeShort, percent } from "@/lib/format";
 import { getEventSummary } from "@/lib/services/events";
+import { getRegistrationFor } from "@/lib/services/registrations";
+import { requireAttendee } from "@/lib/auth";
 import { getTheme, themeVars } from "@/lib/themes";
 import { requestTime } from "@/lib/time";
 
@@ -17,8 +19,14 @@ export const metadata: Metadata = { title: "Register" };
 async function Registration({ params }: { params: PageProps<"/events/[id]/register">["params"] }) {
   await connection();
   const { id } = await params;
+  // Registration requires an attendee account — no anonymous sign-ups.
+  const profile = await requireAttendee(`/events/${id}/register`);
   const event = await getEventSummary(id);
   if (!event) notFound();
+
+  // Already holding a ticket? Send them to it instead of letting them try again.
+  const existing = await getRegistrationFor(id, profile.id);
+  if (existing) redirect(`/tickets/${existing.code}`);
   const theme = getTheme(event.theme);
   const ended = new Date(event.startsAt).getTime() < requestTime() - 6 * 3600_000;
   const closed = ended || event.stats.remaining === 0;
@@ -67,6 +75,12 @@ async function Registration({ params }: { params: PageProps<"/events/[id]/regist
 
       <RegisterForm
         eventId={event.id}
+        attendee={{
+          name: profile.name,
+          email: profile.email,
+          studentId: profile.studentId,
+          department: profile.department,
+        }}
         seatsLeft={event.stats.remaining}
         closed={closed}
         closedReason={ended ? "This event has already taken place." : undefined}

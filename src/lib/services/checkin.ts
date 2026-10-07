@@ -51,7 +51,7 @@ export type CheckInResult =
  * scanned at two gates in the same millisecond only one scan can win — the
  * other gets DUPLICATE. Every attempt is written to the audit log.
  */
-export async function checkIn(rawCode: string, gateEventId?: string): Promise<CheckInResult> {
+export async function checkIn(rawCode: string, gateEventId?: string, hostId?: string): Promise<CheckInResult> {
   const code = normalizeEntryCode(rawCode);
   const displayCode = code ?? rawCode.trim().slice(0, 40);
 
@@ -83,6 +83,26 @@ export async function checkIn(rawCode: string, gateEventId?: string): Promise<Ch
     venue: registration.event.venue,
     theme: registration.event.theme,
   };
+
+  // A host may only admit people to events they actually run, even when the gate
+  // is set to "any event" — otherwise one host's gate could burn another's tickets.
+  if (hostId && registration.event.hostId !== hostId) {
+    await prisma.checkInLog.create({
+      data: {
+        result: "WRONG_EVENT",
+        code: registration.code,
+        eventId: await existingEventId(gateEventId),
+        registrationId: registration.id,
+      },
+    });
+    return {
+      status: "WRONG_EVENT",
+      code: registration.code,
+      participant,
+      event,
+      message: `This ticket is for “${registration.event.name}”, which another host runs.`,
+    };
+  }
 
   if (gateEventId && gateEventId !== registration.eventId) {
     await prisma.checkInLog.create({
@@ -165,9 +185,9 @@ export type ActivityItem = {
   createdAt: string;
 };
 
-export async function recentActivity(eventId?: string, take = 12): Promise<ActivityItem[]> {
+export async function recentActivity(eventId?: string, take = 12, hostId?: string): Promise<ActivityItem[]> {
   const logs = await prisma.checkInLog.findMany({
-    where: eventId ? { eventId } : undefined,
+    where: eventId ? { eventId } : hostId ? { event: { hostId } } : undefined,
     orderBy: { createdAt: "desc" },
     take,
     include: {

@@ -19,16 +19,21 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset --force && prisma db seed",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "db:push": "prisma db push"
   },
   "dependencies": {
-    "@prisma/adapter-better-sqlite3": "^7.10.0",
+    "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.1",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.117.2",
+    "@types/pg": "^8.23.1",
     "animejs": "^4.5.0",
     "jsqr": "^1.4.0",
     "next": "16.4.0",
+    "pg": "^8.23.1",
     "qrcode": "^1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
@@ -53,7 +58,7 @@
     "tsx": "^4.23.15",
     "typescript": "^5"
   },
-  "description": "EventEase \u2014 college event registration & QR check-in",
+  "description": "EventEase — college event registration & QR check-in",
   "engines": {
     "node": "^20.19 || ^22.12 || >=24.0"
   }

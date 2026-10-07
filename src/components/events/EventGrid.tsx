@@ -3,13 +3,13 @@
 import { animate, onScroll, stagger } from "animejs";
 import { useAnimeScope } from "@/components/motion/useAnimeScope";
 import type { EventSummary } from "@/lib/services/events";
-import { EventCard } from "./EventCard";
+import { EventCard, type CardViewer } from "./EventCard";
 
 /**
  * Cards rise in with a staggered 3D flip as the grid scrolls into view and
  * fold back when it scrolls out (both directions), capacity bars fill after.
  */
-export function EventGrid({ events, now }: { events: EventSummary[]; now: number }) {
+export function EventGrid({ events, now, viewer }: { events: EventSummary[]; now: number; viewer?: CardViewer }) {
   const ref = useAnimeScope<HTMLDivElement>(
     ({ root, reduced }) => {
       const cards = root.querySelectorAll<HTMLElement>("[data-card]");
@@ -42,7 +42,7 @@ export function EventGrid({ events, now }: { events: EventSummary[]; now: number
     <div ref={ref} className="grid gap-6 [perspective:1400px] sm:grid-cols-2 lg:grid-cols-3">
       {events.map((event) => (
         <div key={event.id} data-card data-intro className="h-full">
-          <EventCard event={event} now={now} />
+          <EventCard event={event} now={now} viewer={viewer} />
         </div>
       ))}
     </div>

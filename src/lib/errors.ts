@@ -1,7 +1,13 @@
 import type { FieldErrors } from "./validation";
 
 export type AppErrorCode =
-  "VALIDATION_ERROR" | "EVENT_NOT_FOUND" | "EVENT_FULL" | "ALREADY_REGISTERED" | "CODE_GENERATION_FAILED";
+  | "VALIDATION_ERROR"
+  | "EVENT_NOT_FOUND"
+  | "EVENT_FULL"
+  | "ALREADY_REGISTERED"
+  | "CODE_GENERATION_FAILED"
+  | "UNAUTHORIZED"
+  | "FORBIDDEN";
 
 const STATUS: Record<AppErrorCode, number> = {
   VALIDATION_ERROR: 400,
@@ -9,6 +15,8 @@ const STATUS: Record<AppErrorCode, number> = {
   EVENT_FULL: 409,
   ALREADY_REGISTERED: 409,
   CODE_GENERATION_FAILED: 500,
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
 };
 
 /** Expected, user-facing failures. Anything else is treated as a 500. */

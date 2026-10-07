@@ -1,19 +1,26 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { TicketView } from "@/components/tickets/TicketView";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { qrSvg } from "@/lib/qr";
-import { getTicket } from "@/lib/services/registrations";
+import { resolveTicketAccess } from "@/lib/ticket-access";
 
 export const metadata: Metadata = { title: "Your ticket" };
 
 async function Ticket({ params, searchParams }: PageProps<"/tickets/[code]">) {
   await connection();
   const [{ code }, query] = await Promise.all([params, searchParams]);
-  const ticket = await getTicket(decodeURIComponent(code));
-  if (!ticket) notFound();
+  const decoded = decodeURIComponent(code);
+
+  // A ticket is personal: only its holder or the event's host may open it.
+  const access = await resolveTicketAccess(decoded);
+  if (!access.ok) {
+    if (access.reason === "UNAUTHORIZED") redirect(`/signin?next=${encodeURIComponent(`/tickets/${decoded}`)}`);
+    notFound();
+  }
+  const ticket = access.ticket;
   const svg = await qrSvg(ticket.code);
 
   return (

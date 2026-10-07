@@ -4,13 +4,16 @@ import { Suspense } from "react";
 import { CheckInConsole } from "@/components/checkin/CheckInConsole";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PanelSkeleton } from "@/components/ui/Skeleton";
-import { listEvents } from "@/lib/services/events";
+import { listEventsForHost } from "@/lib/services/events";
+import { requireHost } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Check-in gate" };
 
 async function Gate({ searchParams }: { searchParams: PageProps<"/checkin">["searchParams"] }) {
   await connection();
-  const [query, events] = await Promise.all([searchParams, listEvents()]);
+  const profile = await requireHost("/checkin");
+  // The gate only ever offers events this host actually runs.
+  const [query, events] = await Promise.all([searchParams, listEventsForHost(profile.id)]);
   const pick = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? null;
   return (
     <CheckInConsole

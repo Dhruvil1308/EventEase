@@ -1,4 +1,7 @@
 // EventEase — data model
+// Postgres (Supabase). Identity lives in Supabase Auth (auth.users); every
+// auth user has exactly one Profile here, and the Profile's role decides which
+// portal they belong to.
 // Docs: https://pris.ly/d/prisma-schema
 
 generator client {
@@ -7,7 +10,38 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
+}
+
+enum Role {
+  ATTENDEE
+  HOST
+}
+
+/// Mirrors a Supabase `auth.users` row. `id` IS the auth user id, so a session
+/// maps to a profile without a lookup table. Role is fixed at sign-up: an
+/// account is either an attendee or a host, never both.
+model Profile {
+  id    String @id @db.Uuid
+  email String @unique
+  name  String
+  role  Role
+
+  // Host-only
+  organization String?
+
+  // Attendee-only
+  studentId  String?
+  department String?
+  phone      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  hostedEvents  Event[]
+  registrations Registration[]
+
+  @@index([role])
 }
 
 model Event {
@@ -19,33 +53,46 @@ model Event {
   capacity    Int
   // Visual theme used for cards, tickets and the 3D accents (see src/lib/themes.ts)
   theme       String   @default("aurora")
+  // The host account that owns this event. Only they can edit it or run its gate.
+  hostId      String   @db.Uuid
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  host          Profile        @relation(fields: [hostId], references: [id], onDelete: Cascade)
   registrations Registration[]
   checkInLogs   CheckInLog[]
 
   @@index([startsAt])
+  @@index([hostId])
 }
 
 model Registration {
-  id          String    @id @default(cuid())
-  eventId     String
-  name        String
-  // Stored lower-cased so the same person can't register twice with different casing
-  email       String
-  studentId   String?
-  department  String?
+  id      String @id @default(cuid())
+  eventId String
+  // The attendee account that holds this ticket.
+  userId  String @db.Uuid
+
+  // Snapshot of the attendee's details at registration time, so a later profile
+  // edit never rewrites history on an already-issued ticket.
+  name       String
+  email      String
+  studentId  String?
+  department String?
+
   // Human-friendly unique entry code, also encoded in the QR (e.g. EE-7K2M-Q9XD)
   code        String    @unique
   checkedInAt DateTime?
   createdAt   DateTime  @default(now())
 
   event       Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user        Profile      @relation(fields: [userId], references: [id], onDelete: Cascade)
   checkInLogs CheckInLog[]
 
+  // One ticket per account per event — the duplicate-registration guard.
+  @@unique([eventId, userId])
   @@unique([eventId, email])
   @@index([eventId, checkedInAt])
+  @@index([userId])
 }
 
 // Every scan / manual entry at the gate is recorded, including rejected ones,

@@ -238,9 +238,7 @@ export function EventDashboard({ event, initial }: { event: EventSummary; initia
           </div>
           <div className="flex flex-wrap gap-3">
             {!isFull && (
-              <LinkButton href={registrationUrl} variant="secondary">
-                + Register participant
-              </LinkButton>
+              <CopyButton value={registrationUrl} label="Copy registration link" copiedLabel="Link copied!" size="md" />
             )}
             <LinkButton href={`/checkin?event=${event.id}`}>
               <svg

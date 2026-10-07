@@ -1,11 +1,19 @@
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
 
-const DEFAULT_DATABASE_URL = "file:./prisma/dev.db";
+const databaseUrl = process.env.DATABASE_URL;
+
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is not set. Copy .env.example to .env and fill in your Supabase connection string.");
+}
 
 function createPrismaClient() {
-  const adapter = new PrismaBetterSqlite3({
-    url: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL,
+  // Supabase terminates idle connections, and serverless invocations are short
+  // lived, so keep the pool small and let it drain quickly.
+  const adapter = new PrismaPg({
+    connectionString: databaseUrl,
+    max: 5,
+    idleTimeoutMillis: 10_000,
   });
   return new PrismaClient({ adapter });
 }
