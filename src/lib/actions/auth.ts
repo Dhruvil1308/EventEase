@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { Role } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { HOME_FOR, SIGN_IN_FOR } from "@/lib/auth";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createAccount } from "@/lib/services/accounts";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fieldErrors, signInSchema, signUpSchema } from "@/lib/validation";
 
@@ -24,62 +24,17 @@ function safeNext(raw: FormDataEntryValue | null, fallback: string): string {
   return value.startsWith("/") && !value.startsWith("//") ? value : fallback;
 }
 
-/**
- * Creates the account and signs it in immediately.
- *
- * The user is created through the admin API with `email_confirm: true` so there
- * is no confirmation email to wait on — the account works the moment it exists.
- */
+/** Creates the account (see `createAccount`) and signs it in immediately. */
 export async function signUpAction(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
   const role = roleFrom(formData.get("role"));
   const parsed = signUpSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return { error: "Please fix the highlighted fields.", fields: fieldErrors(parsed.error) };
   }
-  const { name, email, password, organization, studentId, department, phone } = parsed.data;
+  const { email, password } = parsed.data;
 
-  const existing = await prisma.profile.findUnique({ where: { email }, select: { role: true } });
-  if (existing) {
-    const where = existing.role === Role.HOST ? "the host portal" : "the attendee portal";
-    return {
-      error:
-        existing.role === role
-          ? "An account with this email already exists. Sign in instead."
-          : `This email is already registered as ${existing.role === Role.HOST ? "a host" : "an attendee"}. Sign in at ${where}.`,
-      fields: { email: ["This email is already in use."] },
-    };
-  }
-
-  const admin = createSupabaseAdminClient();
-  const { data, error } = await admin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: { name, role },
-  });
-  if (error || !data.user) {
-    return { error: error?.message ?? "Couldn't create your account. Please try again." };
-  }
-
-  try {
-    await prisma.profile.create({
-      data: {
-        id: data.user.id,
-        email,
-        name,
-        role,
-        organization: role === Role.HOST ? organization : undefined,
-        studentId: role === Role.ATTENDEE ? studentId : undefined,
-        department: role === Role.ATTENDEE ? department : undefined,
-        phone,
-      },
-    });
-  } catch (profileError) {
-    // Don't strand an auth user with no profile — roll the account back.
-    await admin.auth.admin.deleteUser(data.user.id).catch(() => {});
-    console.error("[auth] profile creation failed", profileError);
-    return { error: "Couldn't finish setting up your account. Please try again." };
-  }
+  const created = await createAccount(parsed.data, role);
+  if (!created.ok) return { error: created.error, fields: created.fields };
 
   const supabase = await createSupabaseServerClient();
   const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });

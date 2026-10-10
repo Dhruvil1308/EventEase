@@ -2,6 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { connection } from "next/server";
 import type { Profile } from "@/generated/prisma/client";
 import { Role } from "@/generated/prisma/enums";
@@ -23,7 +24,18 @@ export const SIGN_IN_FOR: Record<Role, string> = {
 };
 
 /**
- * The signed-in user's profile, or null.
+ * The Android app has no cookies: it sends its Supabase access token as
+ * `Authorization: Bearer <token>` instead. Browsers never attach this header on
+ * their own, so accepting it opens no cross-site request path.
+ */
+async function bearerToken(): Promise<string | undefined> {
+  const value = (await headers()).get("authorization");
+  return value?.match(/^Bearer\s+(\S+)$/i)?.[1];
+}
+
+/**
+ * The signed-in user's profile, or null — from the session cookie (website) or
+ * a bearer token (Android app).
  *
  * `getClaims()` verifies the access token's signature locally against the
  * project's published JWKS, so it is as trustworthy as `getUser()` but costs no
@@ -35,8 +47,8 @@ export const getCurrentProfile = cache(async (): Promise<SessionProfile | null> 
   // against the clock), so this can never be part of a prerender.
   await connection();
 
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.auth.getClaims();
+  const [supabase, token] = await Promise.all([createSupabaseServerClient(), bearerToken()]);
+  const { data, error } = await supabase.auth.getClaims(token);
   const claims = error ? null : data?.claims;
   const userId = typeof claims?.sub === "string" ? claims.sub : null;
   if (!userId) return null;
@@ -49,7 +61,7 @@ export const getCurrentProfile = cache(async (): Promise<SessionProfile | null> 
   // than trusting claims to resurrect a profile for a deleted account.
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await supabase.auth.getUser(token);
   if (!user) return null;
 
   const meta = (user.user_metadata ?? {}) as { name?: string; role?: string };

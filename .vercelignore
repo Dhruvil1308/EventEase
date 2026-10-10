@@ -7,3 +7,5 @@ docs
 !README.md
 prisma/*.db
 prisma/*.db-journal
+# The Android app is built separately (see mobile/README.md).
+mobile
