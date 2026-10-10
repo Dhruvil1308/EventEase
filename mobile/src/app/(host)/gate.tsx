@@ -25,7 +25,10 @@ type Scan = { id: number; result: CheckInResult | { status: "ERROR"; message: st
 
 /** "ee7k2mq9xd" → "EE-7K2M-Q9XD" while typing; codes never use 0/O/1/I/L. */
 function formatTyping(raw: string) {
-  const s = raw.toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/^EE/, "").slice(0, 8);
+  const all = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  // Still typing the "EE" prefix by hand: leave it alone instead of treating it as the code.
+  if (all === "E" || all === "EE") return all;
+  const s = all.replace(/^EE/, "").slice(0, 8);
   if (!s) return "";
   return `EE-${s.slice(0, 4)}${s.length > 4 ? `-${s.slice(4)}` : ""}`;
 }

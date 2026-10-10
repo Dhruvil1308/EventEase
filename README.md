@@ -4,9 +4,12 @@
 
 ### College event registration, QR check-in and AI reminder calls — in one place
 
+🌐 **Web app** + 📱 **Android app (React Native)** — one backend, the same accounts and events on both
+
 **Register fast. Scan once. Zero duplicates.**
 
 [![Live demo](https://img.shields.io/badge/▶_Live_demo-event--ease--zeta--sage.vercel.app-8b5cf6?style=for-the-badge)](https://event-ease-zeta-sage.vercel.app/)
+[![Download the Android app](https://img.shields.io/badge/📱_Android_app-Download_APK-3ddc84?style=for-the-badge&logo=android&logoColor=white)](https://drive.google.com/drive/folders/1eKVgVBRJw1SPvawMaFulEWFC1BieH9VG?usp=sharing)
 
 ![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-149eca?logo=react&logoColor=white)
@@ -15,11 +18,13 @@
 ![Prisma](https://img.shields.io/badge/Prisma-7-2d3748?logo=prisma&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-Postgres_·_Auth_·_Storage-3ecf8e?logo=supabase&logoColor=white)
 ![Vercel](https://img.shields.io/badge/Vercel-hosted-000000?logo=vercel&logoColor=white)
+![React Native](https://img.shields.io/badge/React_Native-0.86-61dafb?logo=react&logoColor=black)
+![Expo](https://img.shields.io/badge/Expo-SDK_57-000020?logo=expo&logoColor=white)
 <br/>
 ![Sarvam AI](https://img.shields.io/badge/Sarvam_AI-Bulbul_v3_·_Saaras_v3-ff7a59)
 ![OpenAI](https://img.shields.io/badge/OpenAI-gpt--4o--mini-412991?logo=openai&logoColor=white)
 ![Vobiz](https://img.shields.io/badge/Vobiz-Indian_phone_line-0ea5e9)
-![Tests](https://img.shields.io/badge/tests-46_unit_+_5_browser_journeys-22c55e)
+![Tests](https://img.shields.io/badge/tests-48_unit_+_5_browser_journeys-22c55e)
 
 <br/>
 
@@ -33,15 +38,16 @@
 
 <div align="center">
 
-|  ⚡ Check-in  |    🎫 Uses per ticket     |     🗣️ Call languages      |  ⏱️ Every reminder call   | 🔐 Possible entry codes |
-| :-----------: | :-----------------------: | :------------------------: | :-----------------------: | :---------------------: |
-|   **< 1 s**   |          **1×**           |           **3**            |        **≤ 20 s**         |    **≈ 8.5 × 10¹¹**     |
-| per gate scan | a second scan is rejected | Gujarati · Hindi · English | cut off by the phone line |   typo-proof alphabet   |
+| 📲 Platforms  |  ⚡ Check-in  |    🎫 Uses per ticket     |     🗣️ Call languages      |  ⏱️ Every reminder call   | 🔐 Possible entry codes |
+| :-----------: | :-----------: | :-----------------------: | :------------------------: | :-----------------------: | :---------------------: |
+|     **2**     |   **< 1 s**   |          **1×**           |           **3**            |        **≤ 20 s**         |    **≈ 8.5 × 10¹¹**     |
+| Web · Android | per gate scan | a second scan is rejected | Gujarati · Hindi · English | cut off by the phone line |   typo-proof alphabet   |
 
 </div>
 
 ## 📚 Contents
 
+- [📱 Android app — download & try it](#-android-app-react-native)
 - [The problem](#-the-problem)
 - [Screenshots](#-screenshots)
 - [Features](#-features)
@@ -54,6 +60,66 @@
 - [REST API](#-rest-api)
 - [Testing](#-testing)
 - [Project structure](#-project-structure) · [Scripts](#-scripts) · [Notes](#-notes) · [Roadmap](#-roadmap)
+
+---
+
+## 📱 Android app (React Native)
+
+> [!TIP]
+> **📥 [Download the EventEase Android app (APK)](https://drive.google.com/drive/folders/1eKVgVBRJw1SPvawMaFulEWFC1BieH9VG?usp=sharing)** — install it and experience EventEase on your phone.
+> We built EventEase as **two apps on one backend**: the **web application** and a native **Android application in React Native**.
+> Sign up once and the same account, events and tickets work on both.
+
+<div align="center">
+
+|                                               👋 Welcome                                                |                                           🏆 Event page                                            |                                              🎫 QR ticket                                              |
+| :-----------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------: |
+|       <img src="docs/screenshots/android/welcome.jpg" width="230" alt="Android welcome screen"/>        |    <img src="docs/screenshots/android/event.jpg" width="230" alt="Event details with prizes"/>     |              <img src="docs/screenshots/android/ticket.jpg" width="230" alt="QR ticket"/>              |
+|                                         **🛠️ Create an event**                                          |                                     **✅ Gate: entry granted**                                     |                                      **⛔ Gate: same code again**                                      |
+| <img src="docs/screenshots/android/create-event.jpg" width="230" alt="Create event with live preview"/> | <img src="docs/screenshots/android/gate-granted.jpg" width="230" alt="Entry granted at the gate"/> | <img src="docs/screenshots/android/gate-duplicate.jpg" width="230" alt="Duplicate check-in rejected"/> |
+
+</div>
+
+### 📲 Install in 1 minute
+
+1. Open the **[Google Drive folder](https://drive.google.com/drive/folders/1eKVgVBRJw1SPvawMaFulEWFC1BieH9VG?usp=sharing)** on your Android phone and download `EventEase.apk`.
+2. Tap the file and allow **Install unknown apps** when Android asks.
+3. Open **EventEase** → choose **I'm attending** or **I'm hosting** → sign up.
+
+Works on **Android 7.0+**. It talks to the live site, so an account made in the app also signs in on the [website](https://event-ease-zeta-sage.vercel.app/) — and the other way round.
+
+### ✨ What's inside
+
+| 🎓 Attendees                                            | 🧑‍💼 Hosts                                                              |
+| ------------------------------------------------------- | --------------------------------------------------------------------- |
+| Browse and search events, register in one tap           | Dashboard of every event with live totals                             |
+| Full-screen **QR ticket** with copy & share             | **Camera check-in gate** — QR scan, torch, or type the code           |
+| My tickets: upcoming, attended, checked-in stamp        | Haptic verdicts: granted ✅ · duplicate ⛔ · invalid ⚠️ · wrong event |
+| Profile: photo, skills, hobbies, college, call language | Create & edit events: prizes, fee, theme, cover, live preview         |
+| Stays signed in; pull to refresh everywhere             | Live event dashboard, CSV export, **Aanaya reminder-call console**    |
+
+### 🔗 One backend, two apps
+
+```mermaid
+flowchart LR
+    W["🌐 Web app<br/>Next.js · cookie session"] --> API
+    M["📱 Android app<br/>React Native · Bearer token"] --> API
+    API["EventEase REST API<br/>on Vercel"] --> DB[("Supabase<br/>Postgres · Auth · Storage")]
+```
+
+The app signs in with Supabase Auth and sends its access token as `Authorization: Bearer …`; the API
+accepts that alongside the website's cookies, so every rule (capacity, exactly-once check-in, host-only
+tools) is enforced in one place.
+
+### 🛠️ Build the APK yourself
+
+```bash
+cd mobile
+npm install
+npm run build:apk     # → mobile/dist/EventEase.apk (needs JDK 17 + Android SDK)
+```
+
+Code lives in [`mobile/`](mobile/) — Expo SDK 57, React Native 0.86, Expo Router. Details in [mobile/README.md](mobile/README.md).
 
 ---
 
@@ -190,6 +256,8 @@ flowchart TB
         P3["🚪 Check-in gate"]
     end
 
+    MOB["📱 Android app<br/>React Native · Bearer token"]
+
     subgraph APP["EventEase · Next.js 16 on Vercel"]
         PX["proxy.ts<br/>session + role routing"]
         RH["Route Handlers<br/>REST API · zod validation"]
@@ -212,6 +280,7 @@ flowchart TB
     PH(["📱 Attendee's phone"])
 
     CLIENT --> PX --> RH --> SV --> DB
+    MOB --> RH
     PX -.-> AU
     SV --> ST
     SV --> VO
@@ -435,6 +504,7 @@ erDiagram
 | Validation | **zod**, shared by the browser and the server                                                                                        |
 | Testing    | Node test runner (unit + integration) and **Playwright** (browser journeys)                                                          |
 | Hosting    | **Vercel**                                                                                                                           |
+| Mobile     | **React Native 0.86** + **Expo SDK 57** (Expo Router, Reanimated, expo-camera QR scanning, haptics), **supabase-js** auth            |
 
 ---
 
@@ -544,7 +614,7 @@ Use two windows: the **host** in a normal window, the **attendee** in an incogni
 
 ## 🔌 REST API
 
-Every write endpoint needs a signed-in session cookie, and host endpoints only work for the event's owner.
+Every write endpoint needs a signed-in session — the website's cookie **or** `Authorization: Bearer <Supabase access token>` from the Android app — and host endpoints only work for the event's owner.
 
 <details>
 <summary><b>Events, registrations and check-in</b></summary>
@@ -565,6 +635,17 @@ Every write endpoint needs a signed-in session cookie, and host endpoints only w
 | `GET`    | `/api/tickets/:code`            | Ticket lookup · its holder                                                                            |
 | `GET`    | `/api/tickets/:code/qr`         | QR PNG (`?download` to save)                                                                          |
 | `GET`    | `/api/stats`                    | Totals across all events                                                                              |
+
+</details>
+
+<details>
+<summary><b>Android app</b></summary>
+
+| Method | Endpoint             | Description                                                                  |
+| ------ | -------------------- | ---------------------------------------------------------------------------- |
+| `POST` | `/api/auth/signup`   | Create an account `{ role, name, email, password, … }` → `201`; then sign in |
+| `GET`  | `/api/me/tickets`    | The signed-in attendee's tickets with event details                          |
+| `GET`  | `/api/host/overview` | The host's totals and every event with stats                                 |
 
 </details>
 
@@ -597,7 +678,7 @@ Every write endpoint needs a signed-in session cookie, and host endpoints only w
 ## 🧪 Testing
 
 ```bash
-npm test                                              # 46 unit + integration tests, ~40 s
+npm test                                              # 48 unit + integration tests, ~40 s
 npm run dev:calls                                     # terminal 1 — note the port
 E2E_BASE_URL=http://localhost:3001 npm run test:e2e   # terminal 2 — 5 browser journeys, ~1.5 min
 ```
@@ -619,6 +700,7 @@ E2E_BASE_URL=http://localhost:3001 npm run test:e2e   # terminal 2 — 5 browser
 ## 🗂️ Project structure
 
 ```text
+mobile/                 📱 Android app — React Native + Expo (screens, API client, build-apk script)
 prisma/                 schema, migrations, seed
 scripts/                dev-calls.mjs · tunnel.mjs · setup-storage.mts · confirm-wipe.mjs
 src/
@@ -681,7 +763,7 @@ docs/                   UAT.md · screenshots
 ```mermaid
 timeline
     title EventEase roadmap
-    Now : Two portals : QR gate, exactly once : Live dashboard : Aanaya reminder calls
+    Now : Two portals : QR gate, exactly once : Live dashboard : Aanaya reminder calls : Android app
     Next : Email and WhatsApp tickets
     Then : Waitlists that refill freed seats : UPI paid passes
     Later : Offline multi-gate mode : Campus-wide licences
@@ -693,6 +775,6 @@ timeline
 
 Built by **Team Techie Guru** 🧡
 
-**[Try the live demo →](https://event-ease-zeta-sage.vercel.app/)**
+**[🌐 Try the live demo →](https://event-ease-zeta-sage.vercel.app/)** · **[📱 Download the Android app →](https://drive.google.com/drive/folders/1eKVgVBRJw1SPvawMaFulEWFC1BieH9VG?usp=sharing)**
 
 </div>
