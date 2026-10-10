@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Button, LinkButton, buttonClasses } from "@/components/ui/Button";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { ProgressRing } from "@/components/ui/ProgressRing";
-import { formatFullDate, formatTimeShort, percent } from "@/lib/format";
+import { formatFee, getEventType } from "@/lib/event-types";
+import { formatEndTime, formatFullDate, formatTimeShort, percent } from "@/lib/format";
 import type { EventSummary } from "@/lib/services/events";
 import type { EventLiveData } from "@/lib/services/live";
 import { getTheme, themeVars } from "@/lib/themes";
@@ -42,6 +43,7 @@ export function EventDashboard({ event, initial }: { event: EventSummary; initia
   const router = useRouter();
   const searchParams = useSearchParams();
   const justCreated = searchParams.get("created") === "1";
+  const justUpdated = searchParams.get("updated") === "1";
   const [live, setLive] = useState(initial);
   // Next.js keeps visited pages alive (React <Activity>), so this component can
   // come back with old state. Adopt each fresh server snapshot when it arrives.
@@ -172,6 +174,7 @@ export function EventDashboard({ event, initial }: { event: EventSummary; initia
 
   const registrationUrl = `/events/${event.id}/register`;
   const isFull = stats.remaining === 0;
+  const type = getEventType(event.type);
 
   return (
     <div ref={root} style={themeVars(event.theme) as CSSProperties}>
@@ -187,6 +190,16 @@ export function EventDashboard({ event, initial }: { event: EventSummary; initia
           <CopyButton value={registrationUrl} label="Copy registration link" size="sm" />
         </div>
       )}
+      {justUpdated && (
+        <div
+          data-dash
+          data-intro
+          role="status"
+          className="mb-6 rounded-2xl border border-success/30 bg-success/10 p-4 text-sm font-semibold text-success"
+        >
+          Changes saved.
+        </div>
+      )}
 
       {/* Hero banner */}
       <section
@@ -194,7 +207,22 @@ export function EventDashboard({ event, initial }: { event: EventSummary; initia
         data-intro
         className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-ink-900"
       >
-        <div aria-hidden className="absolute inset-0 bg-theme opacity-30" />
+        {event.coverUrl && (
+          // eslint-disable-next-line @next/next/no-img-element -- ≤300 KB storage image
+          <img
+            src={event.coverUrl}
+            alt=""
+            aria-hidden
+            className="absolute inset-0 h-full w-full object-cover opacity-45"
+          />
+        )}
+        <div
+          aria-hidden
+          className={`absolute inset-0 bg-theme ${event.coverUrl ? "opacity-20 mix-blend-overlay" : "opacity-30"}`}
+        />
+        {event.coverUrl && (
+          <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-ink-900 via-ink-900/70 to-ink-900/20" />
+        )}
         <div
           aria-hidden
           className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgb(var(--t-glow)/0.45),transparent_60%)]"
@@ -216,6 +244,12 @@ export function EventDashboard({ event, initial }: { event: EventSummary; initia
                   {stats.remaining} {stats.remaining === 1 ? "seat" : "seats"} left
                 </Badge>
               )}
+              {event.type !== "OTHER" && (
+                <Badge tone="violet">
+                  {type.emoji} {type.label}
+                </Badge>
+              )}
+              <Badge tone="neutral">{event.entryFee > 0 ? formatFee(event.entryFee) : "Free entry"}</Badge>
             </div>
             <h1 className="mt-5 font-display text-3xl leading-tight font-bold text-white sm:text-5xl">{event.name}</h1>
             <p className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-zinc-300" suppressHydrationWarning>
@@ -226,6 +260,7 @@ export function EventDashboard({ event, initial }: { event: EventSummary; initia
               <span className="inline-flex items-center gap-1.5">
                 <Icon d="M10 18a8 8 0 100-16 8 8 0 000 16zM10 6v4l2.5 2.5" />
                 {formatTimeShort(event.startsAt)}
+                {event.endsAt ? ` – ${formatEndTime(event.startsAt, event.endsAt)}` : ""}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <Icon d="M10 18s6-5.3 6-10a6 6 0 10-12 0c0 4.7 6 10 6 10zM10 10a2 2 0 100-4 2 2 0 000 4z" />
@@ -235,8 +270,24 @@ export function EventDashboard({ event, initial }: { event: EventSummary; initia
             {event.description && (
               <p className="mt-4 max-w-xl text-sm leading-relaxed text-zinc-400">{event.description}</p>
             )}
+            {event.prizes.length > 0 && (
+              <ul className="mt-5 flex flex-wrap gap-2" aria-label="Prizes">
+                {event.prizes.map((p, i) => (
+                  <li key={i} className="rounded-xl border border-warn/25 bg-warn/10 px-3 py-1.5 text-xs">
+                    <span className="text-zinc-300">{p.title}</span>{" "}
+                    <span className="font-semibold text-warn">{p.reward}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           <div className="flex flex-wrap gap-3">
+            <LinkButton href={`/events/${event.id}/edit`} variant="secondary">
+              Edit
+            </LinkButton>
+            <LinkButton href={`/events/${event.id}/calls`} variant="secondary">
+              <span aria-hidden>📞</span> Reminder calls
+            </LinkButton>
             {!isFull && (
               <CopyButton value={registrationUrl} label="Copy registration link" copiedLabel="Link copied!" size="md" />
             )}

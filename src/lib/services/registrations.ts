@@ -29,8 +29,11 @@ function uniqueViolationFields(error: unknown): string[] | null {
 const mentions = (fields: string[], column: string) =>
   fields.some((f) => f.replace(/[`"]/g, "").toLowerCase().includes(column.toLowerCase()));
 
-/** Who the ticket belongs to. Always the signed-in attendee — never user input. */
-export type RegisteringUser = { id: string; email: string };
+/**
+ * Who the ticket belongs to. Always the signed-in attendee — never user input.
+ * Their profile's phone and call language fill in anything the form leaves blank.
+ */
+export type RegisteringUser = { id: string; email: string; phone?: string | null; callLanguage?: string | null };
 
 export async function registerParticipant(eventId: string, input: RegisterInput, user: RegisteringUser) {
   const parsed = registerSchema.safeParse(input);
@@ -38,13 +41,15 @@ export async function registerParticipant(eventId: string, input: RegisterInput,
     throw new AppError("VALIDATION_ERROR", "Please fix the highlighted fields.", fieldErrors(parsed.error));
   }
   const data = parsed.data;
+  const phone = data.phone ?? user.phone ?? null;
+  const callLanguage = data.callLanguage ?? user.callLanguage ?? null;
 
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) throw new AppError("EVENT_NOT_FOUND", "This event doesn't exist (it may have been deleted).");
 
   for (let attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt++) {
     try {
-      return await prisma.$transaction(
+      const registration = await prisma.$transaction(
         async (tx) => {
           // Postgres (unlike SQLite) lets concurrent transactions insert and count
           // without seeing each other, so counting alone would let two people take
@@ -63,6 +68,8 @@ export async function registerParticipant(eventId: string, input: RegisterInput,
               email: user.email,
               studentId: data.studentId,
               department: data.department,
+              phone,
+              callLanguage,
               code: generateEntryCode(),
             },
           });
@@ -76,6 +83,11 @@ export async function registerParticipant(eventId: string, input: RegisterInput,
           timeout: 15_000,
         },
       );
+      // A number typed here is remembered on the profile, if it had none yet.
+      if (data.phone && !user.phone) {
+        await prisma.profile.updateMany({ where: { id: user.id, phone: null }, data: { phone: data.phone } });
+      }
+      return registration;
     } catch (error) {
       if (error instanceof CapacityExceeded) {
         throw new AppError("EVENT_FULL", `Sorry — all ${event.capacity} seats for this event are taken.`);
@@ -106,6 +118,8 @@ export type UserTicketRow = {
   eventName: string;
   venue: string;
   startsAt: Date;
+  endsAt: Date | null;
+  coverPath: string | null;
   theme: string;
   hostName: string;
 };
@@ -117,7 +131,7 @@ export type UserTicketRow = {
 export async function listRegistrationsForUser(userId: string): Promise<UserTicketRow[]> {
   return prisma.$queryRaw<UserTicketRow[]>`
     SELECT r.code, r."checkedInAt",
-           e.id AS "eventId", e.name AS "eventName", e.venue, e."startsAt", e.theme,
+           e.id AS "eventId", e.name AS "eventName", e.venue, e."startsAt", e."endsAt", e."coverPath", e.theme,
            p.name AS "hostName"
     FROM "Registration" r
     JOIN "Event" e ON e.id = r."eventId"
@@ -145,6 +159,7 @@ export type ParticipantRow = {
   email: string;
   studentId: string | null;
   department: string | null;
+  phone: string | null;
   code: string;
   checkedInAt: string | null;
   createdAt: string;
@@ -156,6 +171,7 @@ export function toParticipantRow(r: {
   email: string;
   studentId: string | null;
   department: string | null;
+  phone: string | null;
   code: string;
   checkedInAt: Date | null;
   createdAt: Date;
@@ -166,6 +182,7 @@ export function toParticipantRow(r: {
     email: r.email,
     studentId: r.studentId,
     department: r.department,
+    phone: r.phone,
     code: r.code,
     checkedInAt: r.checkedInAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),

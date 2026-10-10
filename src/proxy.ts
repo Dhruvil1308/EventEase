@@ -4,6 +4,8 @@ import { NextResponse, type NextRequest } from "next/server";
 /** Prefixes that need a session, and which role they belong to. */
 const HOST_ONLY = ["/host", "/events/new", "/checkin"];
 const ATTENDEE_ONLY = ["/dashboard", "/tickets"];
+/** Any signed-in account. */
+const SIGNED_IN = ["/profile"];
 
 const startsWithAny = (path: string, prefixes: string[]) =>
   prefixes.some((p) => path === p || path.startsWith(`${p}/`));
@@ -49,8 +51,9 @@ export async function proxy(request: NextRequest) {
     startsWithAny(path, HOST_ONLY) && !path.startsWith("/host/signin") && !path.startsWith("/host/signup");
   const needsAttendee = startsWithAny(path, ATTENDEE_ONLY);
   const isRegisterPage = /^\/events\/[^/]+\/register$/.test(path);
+  const needsAccount = startsWithAny(path, SIGNED_IN);
 
-  if (!user && (needsHost || needsAttendee || isRegisterPage)) {
+  if (!user && (needsHost || needsAttendee || isRegisterPage || needsAccount)) {
     const signIn = needsHost ? "/host/signin" : "/signin";
     const url = new URL(signIn, request.url);
     url.searchParams.set("next", `${path}${request.nextUrl.search}`);

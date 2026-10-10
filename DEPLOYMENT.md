@@ -174,3 +174,29 @@ Add `connection_limit=1` to the pooler URL. Each serverless instance keeps its o
 A Supabase auth user exists without a matching `Profile` row. `getCurrentProfile()` rebuilds the
 profile from the auth metadata on next sign-in, so this self-heals — but you can also delete the
 user in Supabase → Authentication → Users and sign up again.
+
+## Profiles, images and Aanaya reminder calls
+
+1. **Migrate and create the buckets** (once per Supabase project):
+
+   ```bash
+   npm run db:deploy
+   npm run storage:setup   # eventease-media (300 KB images) + voice-prompts (call audio)
+   ```
+
+2. **Add the voice variables** in Vercel → Settings → Environment Variables:
+   `SARVAM_API_KEY`, `OPENAI_API_KEY` (optional), `VOBIZ_AUTH_ID`, `VOBIZ_AUTH_TOKEN`,
+   `VOBIZ_FROM_NUMBER`, `CRON_SECRET`, and `PUBLIC_BASE_URL` set to your production
+   domain (e.g. `https://event-ease-zeta-sage.vercel.app`) so Vobiz webhooks reach it.
+
+3. **Run the reminder scheduler every minute.** Vercel's Hobby plan only allows daily
+   cron jobs, so use any external cron (e.g. cron-job.org, GitHub Actions) to call:
+
+   ```
+   GET https://<your-domain>/api/cron/reminders
+   Authorization: Bearer <CRON_SECRET>
+   ```
+
+   On a Pro plan you can instead add `"crons": [{ "path": "/api/cron/reminders", "schedule": "* * * * *" }]`
+   to `vercel.json` — Vercel sends the `CRON_SECRET` header automatically. Manual
+   "Call" / "Call everyone" from the call console works without any cron.

@@ -37,6 +37,12 @@ export const formatTime = (v: string | Date) => time.format(d(v));
 export const formatTimeShort = (v: string | Date) => timeShort.format(d(v));
 export const formatFullDate = (v: string | Date) => fullDate.format(d(v));
 
+const calendarDay = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone });
+
+/** The end of a time range: just the time when it ends the same day, the date as well when it doesn't. */
+export const formatEndTime = (start: string | Date, end: string | Date) =>
+  calendarDay.format(d(start)) === calendarDay.format(d(end)) ? formatTimeShort(end) : formatDateTime(end);
+
 const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 
 export function formatRelative(v: string | Date, now = Date.now()) {

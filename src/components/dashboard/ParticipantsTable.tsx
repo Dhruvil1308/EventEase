@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Button";
 import { formatTimeShort } from "@/lib/format";
+import { formatPhone } from "@/lib/phone";
 import type { ParticipantRow } from "@/lib/services/registrations";
 
 type Filter = "all" | "in" | "pending";
@@ -31,6 +32,7 @@ export function ParticipantsTable({
         p.name.toLowerCase().includes(q) ||
         p.email.includes(q) ||
         (p.studentId ?? "").toLowerCase().includes(q) ||
+        (p.phone ?? "").replace(/\D/g, "").includes(q.replace(/\D/g, "") || "\u0000") ||
         p.code.toLowerCase().replace(/-/g, "").includes(q.replace(/-/g, ""))
       );
     });
@@ -83,7 +85,7 @@ export function ParticipantsTable({
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Name, email, ID or code"
+            placeholder="Name, email, phone, ID or code"
             className="w-full bg-transparent text-sm text-white outline-none placeholder:text-zinc-500"
           />
         </label>
@@ -126,6 +128,11 @@ export function ParticipantsTable({
                         {p.email}
                         {p.studentId ? ` · ${p.studentId}` : ""}
                       </p>
+                      {p.phone && (
+                        <a href={`tel:${p.phone}`} className="text-xs text-cyan/80 transition-colors hover:text-cyan">
+                          {formatPhone(p.phone)}
+                        </a>
+                      )}
                     </div>
                   </div>
                 </td>

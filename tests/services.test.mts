@@ -15,11 +15,12 @@ import { after, before, describe, it } from "node:test";
 
 if (!process.env.DATABASE_URL) throw new Error("Set DATABASE_URL before running the tests.");
 
-const { prisma } = await import("../src/lib/prisma");
-const { createEvent, getEventStats } = await import("../src/lib/services/events");
+const { prisma, readWithRetry, isTransientDbError } = await import("../src/lib/prisma");
+const { createEvent, getEventStats, getGlobalStats, getHostStats } = await import("../src/lib/services/events");
 const { registerParticipant, getTicket } = await import("../src/lib/services/registrations");
 const { checkIn } = await import("../src/lib/services/checkin");
 const { isAppError } = await import("../src/lib/errors");
+const { handleApiError } = await import("../src/lib/api");
 
 const soon = () => new Date(Date.now() + 86_400_000).toISOString();
 
@@ -207,6 +208,54 @@ describe("EventEase core flows", () => {
       logs.map((l) => l.result),
       ["SUCCESS", "DUPLICATE", "INVALID"],
     );
+  });
+
+  it("totals a host's events in one query, matching the per-table counts", async () => {
+    const hostId = HOST;
+    const expected = {
+      events: await prisma.event.count({ where: { hostId } }),
+      totalCapacity: (await prisma.event.aggregate({ where: { hostId }, _sum: { capacity: true } }))._sum.capacity ?? 0,
+      registrations: await prisma.registration.count({ where: { event: { hostId } } }),
+      checkIns: await prisma.registration.count({ where: { event: { hostId }, checkedInAt: { not: null } } }),
+      duplicatesBlocked: await prisma.checkInLog.count({ where: { result: "DUPLICATE", event: { hostId } } }),
+      reminderCalls: await prisma.reminderCall.count({ where: { event: { hostId }, status: "COMPLETED" } }),
+    };
+    assert.ok(expected.events > 0 && expected.duplicatesBlocked > 0, "earlier tests should have left data to count");
+    assert.deepEqual(await getHostStats(hostId), expected);
+
+    // Site-wide totals use the same shape; every field is a whole number.
+    const global = await getGlobalStats();
+    for (const key of ["events", "totalCapacity", "registrations", "checkIns", "duplicatesBlocked"] as const) {
+      assert.ok(Number.isInteger(global[key]) && global[key] >= expected[key], key);
+    }
+  });
+
+  it("retries a read once when the connection blips, but not a real error", async () => {
+    let calls = 0;
+    const flaky = () => {
+      calls++;
+      if (calls === 1) throw new Error("Connection terminated due to connection timeout");
+      return Promise.resolve("ok");
+    };
+    assert.equal(await readWithRetry(flaky), "ok");
+    assert.equal(calls, 2);
+
+    let badCalls = 0;
+    await assert.rejects(
+      readWithRetry(() => {
+        badCalls++;
+        return Promise.reject(new Error('relation "Nope" does not exist'));
+      }),
+    );
+    assert.equal(badCalls, 1, "a query error is not retried");
+    assert.ok(isTransientDbError(new Error("Can't reach database server at `x:5432`")));
+    assert.ok(!isTransientDbError(new Error("Unique constraint failed")));
+
+    // The API reports a dropped connection as a retryable 503, not a 500.
+    const res = handleApiError(new Error("Connection terminated due to connection timeout"));
+    assert.equal(res.status, 503);
+    assert.equal(res.headers.get("Retry-After"), "5");
+    assert.equal(((await res.json()) as { error: { code: string } }).error.code, "DATABASE_UNAVAILABLE");
   });
 
   it("looks tickets up by code", async () => {

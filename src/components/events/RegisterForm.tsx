@@ -6,6 +6,8 @@ import { useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "reac
 import { useAnimeScope } from "@/components/motion/useAnimeScope";
 import { Button } from "@/components/ui/Button";
 import { InputField } from "@/components/ui/Field";
+import { CALL_LANGUAGES, CALL_LANGUAGE_IDS, type CallLanguage } from "@/lib/call-languages";
+import { formatPhone } from "@/lib/phone";
 import { fieldErrors, registerSchema, type FieldErrors } from "@/lib/validation";
 
 /** The signed-in attendee. The ticket is always issued to this account. */
@@ -14,6 +16,8 @@ export type Attendee = {
   email: string;
   studentId: string | null;
   department: string | null;
+  phone: string | null;
+  callLanguage: string;
 };
 
 type Props = {
@@ -34,8 +38,12 @@ export function RegisterForm({ eventId, attendee, seatsLeft, closed, closedReaso
       email: attendee.email,
       studentId: attendee.studentId ?? "",
       department: attendee.department ?? "",
+      phone: formatPhone(attendee.phone),
+      callLanguage: ((CALL_LANGUAGE_IDS as readonly string[]).includes(attendee.callLanguage)
+        ? attendee.callLanguage
+        : "hi") as CallLanguage,
     }),
-    [attendee.name, attendee.email, attendee.studentId, attendee.department],
+    [attendee.name, attendee.email, attendee.studentId, attendee.department, attendee.phone, attendee.callLanguage],
   );
   const [values, setValues] = useState(initial);
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -74,7 +82,7 @@ export function RegisterForm({ eventId, attendee, seatsLeft, closed, closedReaso
     });
   });
 
-  const update = (key: keyof typeof values, value: string) => {
+  const update = <K extends keyof typeof values>(key: K, value: (typeof values)[K]) => {
     setValues((v) => ({ ...v, [key]: value }));
     if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }));
   };
@@ -219,6 +227,40 @@ export function RegisterForm({ eventId, attendee, seatsLeft, closed, closedReaso
             onChange={(e) => update("department", e.target.value)}
             error={errors.department?.[0]}
           />
+        </div>
+        <div data-field data-intro className="space-y-4 rounded-2xl border border-cyan/15 bg-cyan/[0.04] p-4">
+          <InputField
+            id="phone"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            label="Mobile number"
+            optional
+            placeholder="+91 98765 43210"
+            value={values.phone}
+            onChange={(e) => update("phone", e.target.value)}
+            error={errors.phone?.[0]}
+            hint="📞 Aanaya, our voice assistant, may call you with a quick reminder before the event."
+          />
+          <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Reminder call language">
+            <span className="mr-1 text-xs text-zinc-400">Call me in</span>
+            {CALL_LANGUAGE_IDS.map((id) => (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={values.callLanguage === id}
+                onClick={() => update("callLanguage", id)}
+                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  values.callLanguage === id
+                    ? "border-cyan/60 bg-cyan/15 text-cyan"
+                    : "border-white/10 bg-white/5 text-zinc-300 hover:text-white"
+                }`}
+              >
+                {CALL_LANGUAGES[id].native}
+              </button>
+            ))}
+          </div>
         </div>
 
         {formError && (

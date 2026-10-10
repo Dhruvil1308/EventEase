@@ -36,6 +36,31 @@ function getClient(): PrismaClient {
   return client;
 }
 
+/** Errors from a dropped or slow connection, as opposed to a bad query. */
+const TRANSIENT =
+  /connection (timeout|terminated)|timeout exceeded when trying to connect|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|Can't reach database server|Unable to start a transaction in the given time|P1001|P1017|P2028/i;
+
+export const isTransientDbError = (error: unknown) =>
+  TRANSIENT.test(
+    error instanceof Error ? `${error.message} ${(error as { code?: string }).code ?? ""}` : String(error),
+  );
+
+/**
+ * Runs a read, trying once more after a short pause if the connection blips
+ * (a flaky network, or the pooler briefly busy). Reads only: a retried write
+ * could apply twice.
+ */
+export async function readWithRetry<T>(read: () => Promise<T>, attempts = 2): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await read();
+    } catch (error) {
+      if (attempt >= attempts || !isTransientDbError(error)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+    }
+  }
+}
+
 /**
  * The Prisma client, created on first use rather than on import.
  *

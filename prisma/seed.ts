@@ -10,6 +10,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { createClient } from "@supabase/supabase-js";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { generateEntryCode } from "../src/lib/codes";
+import { normalizePhone } from "../src/lib/phone";
 
 if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not set — see .env.example.");
 
@@ -19,10 +20,49 @@ const prisma = new PrismaClient({
 
 /** Demo accounts you can actually sign in with after seeding. */
 const DEMO_PASSWORD = "eventease123";
-const DEMO_HOST = { email: "host@eventease.demo", name: "Code Carnival Committee", organization: "Student Council" };
+const DEMO_HOST = {
+  email: "host@eventease.demo",
+  name: "Code Carnival Committee",
+  organization: "Student Council",
+  bio: "We run the biggest tech fest on campus — hackathons, workshops and a cultural night to close it out.",
+  college: "Atmiya University",
+  city: "Rajkot",
+};
+
+/**
+ * Seeded people never get made-up phone numbers: a number like 98765 43210
+ * belongs to a real person, and "Call everyone" would ring them. Put your own
+ * number in DEMO_PHONE to receive Aanaya's reminder as Aisha.
+ */
+const DEMO_PHONE = normalizePhone(process.env.DEMO_PHONE);
+
 const DEMO_ATTENDEES = [
-  { email: "aisha@eventease.demo", name: "Aisha Khan", studentId: "21CE045", department: "Computer" },
-  { email: "rahul@eventease.demo", name: "Rahul Mehta", studentId: "21IT112", department: "IT" },
+  {
+    email: "aisha@eventease.demo",
+    name: "Aisha Khan",
+    studentId: "21CE045",
+    department: "Computer",
+    phone: DEMO_PHONE,
+    callLanguage: "hi",
+    bio: "Third-year CE student. Robotics club lead, chai enthusiast, always up for a hackathon.",
+    skills: ["Python", "React", "Robotics", "Public speaking"],
+    hobbies: ["Badminton", "Sketching", "Travel"],
+    college: "Atmiya University",
+    city: "Rajkot",
+  },
+  {
+    email: "rahul@eventease.demo",
+    name: "Rahul Mehta",
+    studentId: "21IT112",
+    department: "IT",
+    phone: null,
+    callLanguage: "gu",
+    bio: "Full-stack tinkerer and quizzing nerd.",
+    skills: ["Node.js", "UI/UX", "SQL"],
+    hobbies: ["Cricket", "Chess"],
+    college: "Atmiya University",
+    city: "Ahmedabad",
+  },
 ];
 
 const supabaseConfigured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SECRET_KEY);
@@ -163,8 +203,19 @@ const EVENTS = [
     description: "36 hours, 60 teams, one stage. Opening ceremony, problem statements and team formation.",
     venue: "Main Auditorium, Block A",
     startsAt: at(2, 10),
+    endsAt: at(3, 22),
     capacity: 150,
     theme: "aurora",
+    type: "HACKATHON",
+    entryFee: 200,
+    prizes: [
+      { title: "🥇 1st place", reward: "₹50,000 + incubation" },
+      { title: "🥈 2nd place", reward: "₹25,000" },
+      { title: "🥉 3rd place", reward: "₹10,000" },
+      { title: "Best first-year team", reward: "₹5,000" },
+    ],
+    reminderEnabled: true,
+    reminderLeadMinutes: 60,
     registrations: 96,
     checkedIn: 0,
   },
@@ -173,8 +224,10 @@ const EVENTS = [
     description: "Hands-on session building a line-following robot with a tiny on-device vision model.",
     venue: "Innovation Lab 2",
     startsAt: inProgress(),
+    endsAt: new Date(inProgress().getTime() + 3 * HOUR),
     capacity: 40,
     theme: "neon",
+    type: "WORKSHOP",
     registrations: 37,
     checkedIn: 21,
   },
@@ -183,8 +236,11 @@ const EVENTS = [
     description: "Dance crews, the college band and a DJ set to close the fest. Bring your ID card.",
     venue: "Open Air Theatre",
     startsAt: at(5, 18),
+    endsAt: at(5, 23),
     capacity: 300,
     theme: "sunset",
+    type: "CULTURAL",
+    entryFee: 100,
     registrations: 142,
     checkedIn: 0,
   },
@@ -193,14 +249,33 @@ const EVENTS = [
     description: "Ten student startups, five investors, three minutes each. Audience vote decides the wildcard.",
     venue: "Seminar Hall 3",
     startsAt: at(1, 16),
+    endsAt: at(1, 19),
     capacity: 12,
     theme: "blossom",
+    type: "COMPETITION",
+    prizes: [
+      { title: "Investor's pick", reward: "₹1,00,000 seed grant" },
+      { title: "Audience wildcard", reward: "Mentorship + ₹15,000" },
+    ],
     registrations: 12,
     checkedIn: 0,
   },
 ];
 
 async function main() {
+  // Seeding starts by deleting everything. Refuse when the database holds real
+  // accounts (anything but demo and test ones) unless the wipe is asked for.
+  const realAccounts = await prisma.profile.count({
+    where: { NOT: [{ email: { endsWith: "@eventease.demo" } }, { email: { endsWith: "@e2e.test" } }] },
+  });
+  if (realAccounts > 0 && process.env.SEED_WIPE !== "yes") {
+    console.error(
+      `\n✋ Not seeding: this database has ${realAccounts} real account(s), and seeding deletes every account, ` +
+        `event and ticket.\n   If you really mean to wipe it, run:  SEED_WIPE=yes npm run db:seed\n`,
+    );
+    process.exit(1);
+  }
+
   await prisma.checkInLog.deleteMany();
   await prisma.registration.deleteMany();
   await prisma.event.deleteMany();
@@ -215,15 +290,16 @@ async function main() {
       name: DEMO_HOST.name,
       role: "HOST",
       organization: DEMO_HOST.organization,
+      bio: DEMO_HOST.bio,
+      college: DEMO_HOST.college,
+      city: DEMO_HOST.city,
     },
   });
 
   const demoAttendeeIds: string[] = [];
   for (const a of DEMO_ATTENDEES) {
     const id = await ensureAuthUser(a.email, a.name, "ATTENDEE");
-    await prisma.profile.create({
-      data: { id, email: a.email, name: a.name, role: "ATTENDEE", studentId: a.studentId, department: a.department },
-    });
+    await prisma.profile.create({ data: { id, role: "ATTENDEE", ...a } });
     demoAttendeeIds.push(id);
   }
   console.log(
@@ -256,6 +332,8 @@ async function main() {
       email: string;
       studentId: string;
       department: string;
+      phone: string | null;
+      callLanguage: string | null;
       code: string;
       createdAt: Date;
       checkedInAt: Date | null;
@@ -303,6 +381,8 @@ async function main() {
         email: demo?.email ?? person_.email,
         studentId: demo?.studentId ?? person_.studentId,
         department: demo?.department ?? person_.department,
+        phone: demo?.phone ?? null,
+        callLanguage: demo?.callLanguage ?? null,
         code,
         createdAt,
         checkedInAt,

@@ -7,7 +7,10 @@ export type AppErrorCode =
   | "ALREADY_REGISTERED"
   | "CODE_GENERATION_FAILED"
   | "UNAUTHORIZED"
-  | "FORBIDDEN";
+  | "FORBIDDEN"
+  | "VOICE_NOT_CONFIGURED"
+  | "VOICE_PROVIDER_ERROR"
+  | "NOTHING_TO_CALL";
 
 const STATUS: Record<AppErrorCode, number> = {
   VALIDATION_ERROR: 400,
@@ -17,6 +20,9 @@ const STATUS: Record<AppErrorCode, number> = {
   CODE_GENERATION_FAILED: 500,
   UNAUTHORIZED: 401,
   FORBIDDEN: 403,
+  VOICE_NOT_CONFIGURED: 503,
+  VOICE_PROVIDER_ERROR: 502,
+  NOTHING_TO_CALL: 409,
 };
 
 /** Expected, user-facing failures. Anything else is treated as a 500. */

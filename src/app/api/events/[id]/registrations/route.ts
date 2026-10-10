@@ -37,6 +37,8 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/events/
     const registration = await registerParticipant(id, body as RegisterInput, {
       id: gate.profile.id,
       email: gate.profile.email,
+      phone: gate.profile.phone,
+      callLanguage: gate.profile.callLanguage,
     });
     return NextResponse.json(
       {

@@ -2,12 +2,13 @@ import { Suspense } from "react";
 import { Features } from "@/components/home/Features";
 import { FinalCta } from "@/components/home/FinalCta";
 import { Hero } from "@/components/home/Hero";
-import { HowItWorks } from "@/components/home/HowItWorks";
+import { StoryScroll } from "@/components/home/StoryScroll";
 import { LiveStats, LiveStatsSkeleton } from "@/components/home/LiveStats";
 import { ProblemSolution } from "@/components/home/ProblemSolution";
 import { UpcomingEvents } from "@/components/home/UpcomingEvents";
 import { Marquee } from "@/components/motion/Marquee";
 import { Reveal } from "@/components/motion/Reveal";
+import { Scramble } from "@/components/motion/Scramble";
 import { SplitText } from "@/components/motion/SplitText";
 import { LinkButton } from "@/components/ui/Button";
 import { CardGridSkeleton } from "@/components/ui/Skeleton";
@@ -22,6 +23,9 @@ const TICKER = [
   "Audit log",
   "One-tap registration",
 ];
+
+/** Big outlined words for the band between the features and upcoming events. */
+const BAND = ["Register fast", "Scan once", "Zero duplicates", "Aanaya calls", "Live counts"];
 
 export default function HomePage() {
   return (
@@ -44,7 +48,7 @@ export default function HomePage() {
       </div>
 
       <ProblemSolution />
-      <HowItWorks />
+      <StoryScroll />
 
       <Suspense fallback={<LiveStatsSkeleton />}>
         <LiveStats />
@@ -52,12 +56,26 @@ export default function HomePage() {
 
       <Features />
 
+      <div aria-hidden className="relative py-6">
+        <Marquee reverse speed={36000} className="py-2">
+          {BAND.map((word, i) => (
+            <span
+              key={word}
+              className={`font-display text-6xl font-extrabold tracking-tight whitespace-nowrap uppercase sm:text-8xl ${
+                i % 2 ? "text-gradient" : "text-transparent [-webkit-text-stroke:1.5px_rgba(255,255,255,0.28)]"
+              }`}
+            >
+              {word}
+              <span className="mx-8 text-white/20">✦</span>
+            </span>
+          ))}
+        </Marquee>
+      </div>
+
       <section className="relative mx-auto max-w-6xl px-6 py-20">
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div>
-            <Reveal as="p" className="font-mono text-xs tracking-[0.3em] text-cyan uppercase">
-              Happening soon
-            </Reveal>
+            <Scramble text="Happening soon" className="font-mono text-xs tracking-[0.3em] text-cyan uppercase" />
             <SplitText
               as="h2"
               text="Upcoming events"

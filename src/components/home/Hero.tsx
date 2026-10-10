@@ -34,6 +34,21 @@ export function Hero() {
         autoplay: onScroll({ target: root, enter: "top top", leave: "top bottom", sync: 0.25 }),
       });
     }
+
+    // …while the three headline lines split apart, each its own way.
+    const drift = [
+      { x: -260, skewX: 14 },
+      { x: 300, skewX: -14 },
+      { x: -180, skewX: 10 },
+    ];
+    q("[data-hero-line]").forEach((line, i) => {
+      animate(line, {
+        x: [0, drift[i % drift.length].x],
+        skewX: [0, drift[i % drift.length].skewX],
+        ease: "in(2)",
+        autoplay: onScroll({ target: root, enter: "top top", leave: "top bottom", sync: 0.2 }),
+      });
+    });
   });
 
   return (

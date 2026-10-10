@@ -7,6 +7,8 @@ import { LinkButton } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { CardGridSkeleton } from "@/components/ui/Skeleton";
 import { requireAttendee } from "@/lib/auth";
+import { eventEndMs } from "@/lib/event-time";
+import { mediaUrl } from "@/lib/media";
 import { listRegistrationsForUser } from "@/lib/services/registrations";
 import { requestTime } from "@/lib/time";
 
@@ -26,8 +28,10 @@ async function MyTickets() {
       name: r.eventName,
       venue: r.venue,
       startsAt: r.startsAt.toISOString(),
+      endsAt: r.endsAt?.toISOString() ?? null,
       theme: r.theme,
       hostName: r.hostName,
+      coverUrl: mediaUrl(r.coverPath),
     },
   }));
 
@@ -46,7 +50,7 @@ async function MyTickets() {
   }
 
   const attended = tickets.filter((t) => t.checkedInAt).length;
-  const upcoming = tickets.filter((t) => !t.checkedInAt && new Date(t.event.startsAt).getTime() > now).length;
+  const upcoming = tickets.filter((t) => !t.checkedInAt && eventEndMs(t.event) > now).length;
   const tiles = [
     { label: "Tickets", value: tickets.length, color: "text-violet-soft" },
     { label: "Upcoming", value: upcoming, color: "text-cyan" },

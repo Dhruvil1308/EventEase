@@ -1,4 +1,5 @@
-import { Reveal } from "@/components/motion/Reveal";
+import { Scramble } from "@/components/motion/Scramble";
+import { ScrollFX } from "@/components/motion/ScrollFX";
 import { SplitText } from "@/components/motion/SplitText";
 import { TiltCard } from "@/components/motion/TiltCard";
 
@@ -65,17 +66,21 @@ export function Features() {
   return (
     <section className="relative mx-auto max-w-6xl px-6 py-28">
       <div className="mx-auto max-w-2xl text-center">
-        <Reveal as="p" className="font-mono text-xs tracking-[0.3em] text-violet-soft uppercase">
-          Built for the gate
-        </Reveal>
+        <Scramble text="Built for the gate" className="font-mono text-xs tracking-[0.3em] text-violet-soft uppercase" />
         <SplitText
           as="h2"
+          effect="wave"
           text="Everything a front door needs."
           className="mt-4 block font-display text-3xl leading-tight font-bold tracking-tight text-white sm:text-5xl"
         />
       </div>
 
-      <Reveal stagger={80} className="mt-14 grid gap-5 md:grid-cols-4">
+      <ScrollFX
+        group
+        moves={["left", "tilt", "right", "zoom", "swing", "rise", "flip", "spin"]}
+        cascade={5}
+        className="mt-14 grid gap-5 md:grid-cols-4"
+      >
         {FEATURES.map((f) => (
           <div key={f.title} className={f.span}>
             <TiltCard className="h-full rounded-3xl" max={6}>
@@ -104,7 +109,7 @@ export function Features() {
             </TiltCard>
           </div>
         ))}
-      </Reveal>
+      </ScrollFX>
     </section>
   );
 }

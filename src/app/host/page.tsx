@@ -23,11 +23,12 @@ async function HostOverview() {
     { label: "Registrations", value: stats.registrations, color: "text-cyan" },
     { label: "Checked in", value: stats.checkIns, color: "text-success" },
     { label: "Duplicates blocked", value: stats.duplicatesBlocked, color: "text-pink" },
+    { label: "Reminder calls", value: stats.reminderCalls, color: "text-warn" },
   ];
 
   return (
     <>
-      <dl className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
         {tiles.map((t) => (
           <div key={t.label} className="rounded-2xl px-5 py-4 glass">
             <dt className="text-xs tracking-widest text-zinc-500 uppercase">{t.label}</dt>

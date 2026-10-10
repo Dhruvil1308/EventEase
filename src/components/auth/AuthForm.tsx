@@ -93,6 +93,20 @@ export function AuthForm({ portal, mode }: { portal: Portal; mode: Mode }) {
           />
         )}
 
+        {mode === "signup" && (
+          <InputField
+            id="phone"
+            label="Mobile number"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            optional
+            placeholder="+91 98765 43210"
+            error={err("phone")}
+            hint={portal === "ATTENDEE" ? "Get a reminder call from Aanaya before your events." : undefined}
+          />
+        )}
+
         {mode === "signup" && portal === "ATTENDEE" && (
           <div className="grid gap-4 sm:grid-cols-2">
             <InputField id="studentId" label="Student ID" optional placeholder="21CE045" error={err("studentId")} />

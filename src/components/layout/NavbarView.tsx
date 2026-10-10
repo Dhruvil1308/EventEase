@@ -9,7 +9,7 @@ import { Magnetic } from "@/components/motion/Magnetic";
 import { prefersReducedMotion } from "@/components/motion/useAnimeScope";
 import { AccountMenu, SignOutButton } from "./AccountMenu";
 
-export type Viewer = { name: string; role: "ATTENDEE" | "HOST" } | null;
+export type Viewer = { name: string; role: "ATTENDEE" | "HOST"; avatarUrl?: string | null } | null;
 
 /** The nav only ever offers what this visitor is actually allowed to open. */
 function linksFor(viewer: Viewer) {
@@ -248,6 +248,9 @@ function NavbarView({ pathname, viewer }: { pathname: string; viewer: Viewer }) 
                 <p className="text-sm text-zinc-400">
                   Signed in as <span className="text-white">{viewer.name}</span>
                 </p>
+                <Link href="/profile" onClick={() => setOpen(false)} className="block font-display text-2xl text-cyan">
+                  Your profile
+                </Link>
                 <SignOutButton className="text-lg font-semibold text-danger" />
               </div>
             ) : (

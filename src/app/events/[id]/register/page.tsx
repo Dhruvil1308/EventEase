@@ -7,7 +7,9 @@ import { RegisterForm } from "@/components/events/RegisterForm";
 import { Reveal } from "@/components/motion/Reveal";
 import { ProgressRing } from "@/components/ui/ProgressRing";
 import { PanelSkeleton } from "@/components/ui/Skeleton";
-import { formatFullDate, formatTimeShort, percent } from "@/lib/format";
+import { eventEndMs } from "@/lib/event-time";
+import { formatFee, getEventType } from "@/lib/event-types";
+import { formatEndTime, formatFullDate, formatTimeShort, percent } from "@/lib/format";
 import { getEventSummary } from "@/lib/services/events";
 import { getRegistrationFor } from "@/lib/services/registrations";
 import { requireAttendee } from "@/lib/auth";
@@ -28,7 +30,8 @@ async function Registration({ params }: { params: PageProps<"/events/[id]/regist
   const existing = await getRegistrationFor(id, profile.id);
   if (existing) redirect(`/tickets/${existing.code}`);
   const theme = getTheme(event.theme);
-  const ended = new Date(event.startsAt).getTime() < requestTime() - 6 * 3600_000;
+  const type = getEventType(event.type);
+  const ended = eventEndMs(event) < requestTime();
   const closed = ended || event.stats.remaining === 0;
 
   return (
@@ -37,26 +40,58 @@ async function Registration({ params }: { params: PageProps<"/events/[id]/regist
         variant="left"
         className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-ink-900 p-7 sm:p-9"
       >
+        {event.coverUrl && (
+          <div aria-hidden className="absolute inset-x-0 top-0 h-56 overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element -- ≤300 KB storage image */}
+            <img src={event.coverUrl} alt="" className="h-full w-full object-cover opacity-60" />
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent to-ink-900" />
+          </div>
+        )}
         <div aria-hidden className="absolute inset-0 bg-theme opacity-25" />
         <div
           aria-hidden
           className="absolute -top-24 -right-24 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgb(var(--t-glow)/0.6),transparent_65%)]"
         />
         <div className="relative">
-          <p className="font-mono text-xs tracking-[0.3em] text-zinc-300 uppercase">You&apos;re registering for</p>
+          <p className="font-mono text-xs tracking-[0.3em] text-zinc-300 uppercase">
+            {type.emoji} {type.label} · You&apos;re registering for
+          </p>
           <h1 className="mt-4 font-display text-3xl leading-tight font-bold text-white sm:text-4xl">{event.name}</h1>
           <dl className="mt-6 space-y-3 text-sm">
             <div className="flex gap-3">
               <dt className="w-16 shrink-0 text-zinc-500">When</dt>
               <dd className="text-zinc-200" suppressHydrationWarning>
                 {formatFullDate(event.startsAt)} · {formatTimeShort(event.startsAt)}
+                {event.endsAt ? ` – ${formatEndTime(event.startsAt, event.endsAt)}` : ""}
               </dd>
             </div>
             <div className="flex gap-3">
               <dt className="w-16 shrink-0 text-zinc-500">Where</dt>
               <dd className="text-zinc-200">{event.venue}</dd>
             </div>
+            <div className="flex gap-3">
+              <dt className="w-16 shrink-0 text-zinc-500">Entry</dt>
+              <dd className="text-zinc-200">
+                {event.entryFee > 0 ? `${formatFee(event.entryFee)} at the venue` : "Free"}
+              </dd>
+            </div>
           </dl>
+          {event.prizes.length > 0 && (
+            <div className="mt-6">
+              <p className="text-xs tracking-widest text-zinc-500 uppercase">🏆 Prizes</p>
+              <ul className="mt-3 space-y-2">
+                {event.prizes.map((p, i) => (
+                  <li
+                    key={i}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-warn/20 bg-warn/[0.07] px-4 py-2.5 text-sm"
+                  >
+                    <span className="text-zinc-200">{p.title}</span>
+                    <span className="font-semibold text-warn">{p.reward}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {event.description && <p className="mt-6 text-sm leading-relaxed text-zinc-400">{event.description}</p>}
 
           <div className="mt-8 flex items-center gap-5 border-t border-white/10 pt-6">
@@ -80,6 +115,8 @@ async function Registration({ params }: { params: PageProps<"/events/[id]/regist
           email: profile.email,
           studentId: profile.studentId,
           department: profile.department,
+          phone: profile.phone,
+          callLanguage: profile.callLanguage,
         }}
         seatsLeft={event.stats.remaining}
         closed={closed}

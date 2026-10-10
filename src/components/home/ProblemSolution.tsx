@@ -1,4 +1,6 @@
 import { Reveal } from "@/components/motion/Reveal";
+import { Scramble } from "@/components/motion/Scramble";
+import { ScrollFX } from "@/components/motion/ScrollFX";
 import { SplitText } from "@/components/motion/SplitText";
 
 const BEFORE = [
@@ -21,11 +23,10 @@ export function ProblemSolution() {
   return (
     <section className="relative mx-auto max-w-6xl px-6 py-28">
       <div className="max-w-3xl">
-        <Reveal as="p" className="font-mono text-xs tracking-[0.3em] text-pink uppercase">
-          The problem
-        </Reveal>
+        <Scramble text="The problem" className="font-mono text-xs tracking-[0.3em] text-pink uppercase" />
         <SplitText
           as="h2"
+          effect="scatter"
           text="Spreadsheets weren't built for the front door."
           className="mt-4 block font-display text-3xl leading-tight font-bold tracking-tight text-white sm:text-5xl"
         />
@@ -36,7 +37,7 @@ export function ProblemSolution() {
       </div>
 
       <div className="mt-14 grid gap-6 md:grid-cols-2">
-        <Reveal variant="left" className="relative overflow-hidden rounded-3xl p-7 glass">
+        <ScrollFX move="left" out="rise" className="relative overflow-hidden rounded-3xl p-7 glass">
           <div className="absolute -top-16 -right-16 h-48 w-48 rounded-full bg-danger/10 blur-3xl" />
           <p className="flex items-center gap-2 text-sm font-semibold tracking-widest text-danger uppercase">
             <span className="h-2 w-2 rounded-full bg-danger" /> Before
@@ -51,9 +52,13 @@ export function ProblemSolution() {
               </li>
             ))}
           </Reveal>
-        </Reveal>
+        </ScrollFX>
 
-        <Reveal variant="right" className="border-gradient relative overflow-hidden rounded-3xl p-7 shadow-glow glass">
+        <ScrollFX
+          move="right"
+          out="rise"
+          className="border-gradient relative overflow-hidden rounded-3xl p-7 shadow-glow glass"
+        >
           <div className="absolute -top-16 -right-16 h-48 w-48 rounded-full bg-success/15 blur-3xl" />
           <p className="flex items-center gap-2 text-sm font-semibold tracking-widest text-success uppercase">
             <span className="h-2 w-2 rounded-full bg-success" /> With EventEase
@@ -68,7 +73,7 @@ export function ProblemSolution() {
               </li>
             ))}
           </Reveal>
-        </Reveal>
+        </ScrollFX>
       </div>
     </section>
   );

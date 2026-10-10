@@ -33,7 +33,21 @@ model Profile {
   // Attendee-only
   studentId  String?
   department String?
-  phone      String?
+
+  // Both roles. `phone` is stored in E.164 (+919876543210) so it can be dialled
+  // as-is by the reminder-call feature.
+  phone       String?
+  bio         String?
+  skills      String[] @default([])
+  hobbies     String[] @default([])
+  college     String?
+  city        String?
+  linkedinUrl String?
+  githubUrl   String?
+  // Object path inside the media bucket (see src/lib/storage.ts), not a URL.
+  avatarPath  String?
+  // Language Aanaya uses when she calls this person: en | hi | gu
+  callLanguage String @default("hi")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -50,20 +64,45 @@ model Event {
   description String   @default("")
   venue       String
   startsAt    DateTime
+  // Optional so events created before end times existed stay valid.
+  endsAt      DateTime?
   capacity    Int
+  // WORKSHOP | COMPETITION | HACKATHON | SEMINAR | CULTURAL | SPORTS | MEETUP | OTHER (see src/lib/event-types.ts)
+  type        String   @default("OTHER")
+  // Entry fee in whole rupees; 0 means free. Informational — no payments are taken.
+  entryFee    Int      @default(0)
+  // [{ title: "1st place", reward: "₹10,000 + internship" }, …]
+  prizes      Json     @default("[]")
+  // Object path of the banner image inside the media bucket.
+  coverPath   String?
   // Visual theme used for cards, tickets and the 3D accents (see src/lib/themes.ts)
   theme       String   @default("aurora")
   // The host account that owns this event. Only they can edit it or run its gate.
   hostId      String   @db.Uuid
+
+  // Scheduled reminder calls by Aanaya. When enabled, every registrant with a
+  // phone number is called `reminderLeadMinutes` before `startsAt`.
+  reminderEnabled     Boolean   @default(false)
+  reminderLeadMinutes Int       @default(60)
+  // auto (each attendee's own preference) | en | hi | gu
+  reminderLanguage    String    @default("auto")
+  // "Please arrive N minutes early"
+  reminderArriveEarly Int       @default(10)
+  // Set once the scheduler has queued the calls, so they are never queued twice.
+  reminderQueuedAt    DateTime?
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   host          Profile        @relation(fields: [hostId], references: [id], onDelete: Cascade)
   registrations Registration[]
   checkInLogs   CheckInLog[]
+  reminderCalls ReminderCall[]
+  voicePrompts  VoicePrompt[]
 
   @@index([startsAt])
   @@index([hostId])
+  @@index([reminderEnabled, reminderQueuedAt])
 }
 
 model Registration {
@@ -78,15 +117,19 @@ model Registration {
   email      String
   studentId  String?
   department String?
+  // E.164 mobile number for reminder calls, and the language to call in.
+  phone        String?
+  callLanguage String?
 
   // Human-friendly unique entry code, also encoded in the QR (e.g. EE-7K2M-Q9XD)
   code        String    @unique
   checkedInAt DateTime?
   createdAt   DateTime  @default(now())
 
-  event       Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  user        Profile      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  checkInLogs CheckInLog[]
+  event         Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user          Profile        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  checkInLogs   CheckInLog[]
+  reminderCalls ReminderCall[]
 
   // One ticket per account per event — the duplicate-registration guard.
   @@unique([eventId, userId])
@@ -110,4 +153,61 @@ model CheckInLog {
   registration Registration? @relation(fields: [registrationId], references: [id], onDelete: Cascade)
 
   @@index([eventId, createdAt])
+}
+
+// One outbound reminder call by Aanaya. Calls for an event are dialled one at a
+// time: QUEUED rows wait until the previous call has hung up.
+model ReminderCall {
+  id             String  @id @default(cuid())
+  eventId        String
+  registrationId String
+  phone          String
+  // en | hi | gu
+  language       String
+  // QUEUED | DIALING | RINGING | IN_PROGRESS | COMPLETED | NO_ANSWER | BUSY | FAILED | CANCELED
+  status         String  @default("QUEUED")
+  // MANUAL (host clicked) | SCHEDULED (the reminder timer fired)
+  trigger        String  @default("MANUAL")
+  // The telephony provider's call id, used to match its webhooks.
+  providerCallId String? @unique
+  promptId       String?
+  // What the attendee said back, transcribed (Saaras), and what it means (GPT).
+  transcript     String?
+  // CONFIRMED | DECLINED | UNSURE | NO_RESPONSE
+  intent         String?
+  durationSec    Int?
+  hangupCause    String?
+  error          String?
+  answeredAt     DateTime?
+  endedAt        DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  event        Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  prompt       VoicePrompt? @relation(fields: [promptId], references: [id], onDelete: SetNull)
+
+  @@index([eventId, status, createdAt])
+  @@index([registrationId, createdAt])
+  @@index([status, updatedAt])
+}
+
+// The spoken reminder for one event in one language: the script, and the
+// Sarvam-generated audio the phone call plays. Every call for that event and
+// language reuses it; `signature` changes when the event details do, so a
+// renamed or rescheduled event gets fresh audio.
+model VoicePrompt {
+  id         String   @id @default(cuid())
+  eventId    String
+  language   String
+  signature  String
+  script     String
+  audioPath  String
+  durationMs Int
+  createdAt  DateTime @default(now())
+
+  event Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  calls ReminderCall[]
+
+  @@unique([eventId, language, signature])
 }

@@ -42,7 +42,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${inter.variable} ${hanken.variable} ${jetbrains.variable}`}>
       <body className="grain font-sans antialiased">
         <noscript>
-          <style>{`[data-reveal="self"],[data-reveal="group"]>*,[data-intro]{opacity:1!important}[data-hero-line]{transform:none!important}`}</style>
+          <style>{`[data-reveal="self"],[data-reveal="group"]>*,[data-intro]{opacity:1!important}[data-hero-line]{transform:none!important}#how-it-works{height:auto!important}#how-it-works>div{position:static!important;height:auto!important}[data-chapter]{opacity:1!important;position:relative!important;top:auto!important;translate:none!important;margin-bottom:3rem}`}</style>
         </noscript>
         <a
           href="#main"

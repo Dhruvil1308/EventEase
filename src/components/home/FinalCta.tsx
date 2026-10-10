@@ -1,11 +1,11 @@
 import { Magnetic } from "@/components/motion/Magnetic";
-import { Reveal } from "@/components/motion/Reveal";
+import { ScrollFX } from "@/components/motion/ScrollFX";
 import { LinkButton } from "@/components/ui/Button";
 
 export function FinalCta() {
   return (
     <section className="relative mx-auto max-w-6xl px-6 py-24">
-      <Reveal variant="scale" className="relative overflow-hidden rounded-[2.5rem] p-[1px]">
+      <ScrollFX move="zoom" out="none" className="relative overflow-hidden rounded-[2.5rem] p-[1px]">
         <div
           aria-hidden
           className="absolute inset-0 animate-[gradient-pan_6s_ease-in-out_infinite_alternate] bg-aurora bg-[length:200%_100%]"
@@ -39,7 +39,7 @@ export function FinalCta() {
             </Magnetic>
           </div>
         </div>
-      </Reveal>
+      </ScrollFX>
     </section>
   );
 }

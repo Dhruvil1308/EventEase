@@ -96,6 +96,11 @@ body {
   [data-hero-line] {
     transform: translateY(115%);
   }
+  /* The scroll story shows one chapter at a time; anime.js brings each in. */
+  [data-chapter],
+  [data-card] {
+    opacity: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -235,6 +240,28 @@ body {
   }
   100% {
     background-position: 200% 50%;
+  }
+}
+
+/* Aanaya's call rippling out of the scroll-story stage */
+@keyframes story-ripple {
+  from {
+    transform: scale(0.7);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* Aanaya's waveform while she is on a call */
+@keyframes voice-bar {
+  from {
+    height: 6px;
+  }
+  to {
+    height: 22px;
   }
 }
 

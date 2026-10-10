@@ -50,13 +50,18 @@ export function AccountMenu({ viewer }: { viewer: NonNullable<Viewer> }) {
         aria-haspopup="menu"
         className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 py-1.5 pr-3 pl-1.5 text-sm transition-colors hover:border-white/20"
       >
-        <span
-          className={`grid h-7 w-7 place-items-center rounded-lg text-xs font-bold text-ink-950 ${
-            isHost ? "bg-pink" : "bg-cyan"
-          }`}
-        >
-          {initials(viewer.name)}
-        </span>
+        {viewer.avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- ≤300 KB storage image
+          <img src={viewer.avatarUrl} alt="" className="h-7 w-7 rounded-lg object-cover" />
+        ) : (
+          <span
+            className={`grid h-7 w-7 place-items-center rounded-lg text-xs font-bold text-ink-950 ${
+              isHost ? "bg-pink" : "bg-cyan"
+            }`}
+          >
+            {initials(viewer.name)}
+          </span>
+        )}
         <span className="max-w-28 truncate font-medium text-white">{viewer.name}</span>
         <svg viewBox="0 0 20 20" className="h-4 w-4 text-zinc-500" fill="currentColor" aria-hidden>
           <path d="M5.5 7.5L10 12l4.5-4.5" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" />
@@ -81,6 +86,13 @@ export function AccountMenu({ viewer }: { viewer: NonNullable<Viewer> }) {
             className="block rounded-lg px-3 py-2 text-sm text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
           >
             {isHost ? "Your events" : "My tickets"}
+          </Link>
+          <Link
+            href="/profile"
+            onClick={() => setOpen(false)}
+            className="block rounded-lg px-3 py-2 text-sm text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
+          >
+            Your profile
           </Link>
           <Link
             href="/events"

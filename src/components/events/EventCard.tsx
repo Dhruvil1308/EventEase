@@ -4,12 +4,14 @@ import Link from "next/link";
 import type { CSSProperties } from "react";
 import { TiltCard } from "@/components/motion/TiltCard";
 import { Badge } from "@/components/ui/Badge";
-import { formatDay, formatMonth, formatTimeShort, formatWeekday, percent } from "@/lib/format";
+import { eventEndMs } from "@/lib/event-time";
+import { formatFee, getEventType } from "@/lib/event-types";
+import { formatDay, formatEndTime, formatMonth, formatTimeShort, formatWeekday, percent } from "@/lib/format";
 import type { EventSummary } from "@/lib/services/events";
 import { themeVars } from "@/lib/themes";
 
 export function eventStatus(event: EventSummary, now: number) {
-  if (new Date(event.startsAt).getTime() < now - 6 * 3600_000) return { label: "Ended", tone: "neutral" as const };
+  if (eventEndMs(event) < now) return { label: "Ended", tone: "neutral" as const };
   if (event.stats.remaining === 0) return { label: "Full", tone: "danger" as const };
   if (event.stats.fillRate >= 0.85) return { label: "Almost full", tone: "warn" as const };
   return { label: "Open", tone: "success" as const };
@@ -24,6 +26,8 @@ export function EventCard({ event, now, viewer }: { event: EventSummary; now: nu
   const owns = viewer?.role === "HOST" && viewer.id === event.hostId;
   const isHost = viewer?.role === "HOST";
   const closed = status.label === "Full" || status.label === "Ended";
+  const type = getEventType(event.type);
+  const topPrize = event.prizes[0];
 
   return (
     <TiltCard className="h-full rounded-3xl" max={7}>
@@ -35,6 +39,18 @@ export function EventCard({ event, now, viewer }: { event: EventSummary; now: nu
           aria-hidden
           className="absolute -top-20 -right-20 h-52 w-52 rounded-full bg-theme opacity-25 blur-3xl transition-opacity duration-700 group-hover:opacity-45"
         />
+        {event.coverUrl && (
+          <div aria-hidden className="absolute inset-x-0 top-0 h-36 overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element -- ≤300 KB storage image */}
+            <img
+              src={event.coverUrl}
+              alt=""
+              loading="lazy"
+              className="h-full w-full object-cover opacity-70 transition-transform duration-700 group-hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-ink-950/10 via-ink-900/40 to-ink-900" />
+          </div>
+        )}
 
         <header className="relative flex [transform:translateZ(30px)] items-start justify-between gap-3">
           <div className="grid h-16 w-14 shrink-0 place-items-center rounded-2xl bg-theme text-ink-950 shadow-lg">
@@ -43,9 +59,16 @@ export function EventCard({ event, now, viewer }: { event: EventSummary; now: nu
               <div className="mt-1 text-[10px] font-bold tracking-widest">{formatMonth(event.startsAt)}</div>
             </div>
           </div>
-          <Badge tone={status.tone} dot={status.tone === "success"}>
-            {status.label}
-          </Badge>
+          <div className="flex flex-col items-end gap-1.5">
+            <Badge tone={status.tone} dot={status.tone === "success"}>
+              {status.label}
+            </Badge>
+            {event.type !== "OTHER" && (
+              <Badge tone="violet">
+                {type.emoji} {type.label}
+              </Badge>
+            )}
+          </div>
         </header>
 
         <div className="relative mt-5 flex-1 [transform:translateZ(20px)]">
@@ -76,7 +99,19 @@ export function EventCard({ event, now, viewer }: { event: EventSummary; now: nu
               />
             </svg>
             {formatWeekday(event.startsAt)} · {formatTimeShort(event.startsAt)}
+            {event.endsAt ? ` – ${formatEndTime(event.startsAt, event.endsAt)}` : ""}
           </p>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-zinc-300">
+              {event.entryFee > 0 ? `🎟 ${formatFee(event.entryFee)}` : "🎟 Free"}
+            </span>
+            {topPrize && (
+              <span className="max-w-full truncate rounded-full border border-warn/25 bg-warn/10 px-2.5 py-1 text-[11px] font-semibold text-warn">
+                🏆 {topPrize.reward}
+                {event.prizes.length > 1 ? ` +${event.prizes.length - 1} more` : ""}
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="relative mt-6 [transform:translateZ(15px)]">
@@ -120,6 +155,14 @@ export function EventCard({ event, now, viewer }: { event: EventSummary; now: nu
                 className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 text-sm font-medium text-white transition-colors hover:bg-white/10"
               >
                 Check-in
+              </Link>
+              <Link
+                href={`/events/${event.id}/calls`}
+                title="Reminder calls"
+                aria-label={`Reminder calls for ${event.name}`}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/5 text-white transition-colors hover:border-cyan/40 hover:bg-cyan/10"
+              >
+                <span aria-hidden>📞</span>
               </Link>
             </>
           ) : isHost ? (

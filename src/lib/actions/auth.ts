@@ -71,7 +71,7 @@ export async function signUpAction(_prev: AuthFormState, formData: FormData): Pr
         organization: role === Role.HOST ? organization : undefined,
         studentId: role === Role.ATTENDEE ? studentId : undefined,
         department: role === Role.ATTENDEE ? department : undefined,
-        phone: role === Role.ATTENDEE ? phone : undefined,
+        phone,
       },
     });
   } catch (profileError) {

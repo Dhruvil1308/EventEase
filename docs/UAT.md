@@ -1,22 +1,38 @@
 # EventEase — UAT Test Scenarios
 
 User acceptance tests for the college event registration & QR check-in app.
-**91 cases across 8 suites.** Designed to be run top to bottom in one sitting.
+**159 cases across 12 suites.** Suites A–H cover the core app; I–L cover profiles,
+richer events, Aanaya's reminder calls and the local setup. Each suite can be run on its own.
 
 ---
 
-## Before you start (≈3 minutes)
+## Before you start (≈5 minutes)
 
 ```bash
 npm install
-npm run db:seed     # ~8s — resets to clean demo data
-npm run dev         # http://localhost:3000
+npm run dev:calls   # app + ngrok tunnel — prints the local URL and the webhook URL
 ```
 
-`npm run db:seed` is safe to re-run at any point. If a test leaves the data in a
-confusing state, re-seed and carry on — it takes seconds.
+Use the local URL it prints: `http://localhost:3000`, or `3001` when another app already
+holds port 3000. Wherever this document says `localhost:3000`, use that URL.
+
+> **⚠ The local `.env` points at the live database** — the same one the deployed site
+> uses. **Never run `npm run db:seed` or `npm run db:reset`**: they wipe it. Follow
+> three rules instead:
+>
+> 1. **Sign every new test account up with an email ending in `@e2e.test`**
+>    (e.g. `uat.host1@e2e.test`). Afterwards `npm run test:cleanup` deletes those
+>    accounts and everything they made — events, registrations, gate logs, call
+>    records and uploaded images. Nothing else is touched.
+> 2. **Only enter mobile numbers whose owners agreed to be called** — your own or a
+>    teammate's. Aanaya places real phone calls, and each one uses Vobiz balance.
+> 3. **While the app runs, scheduled reminders really fire** (Suite K). To switch that
+>    off, uncomment `REMINDER_SCHEDULER="off"` in `.env` and restart.
 
 ### Test accounts
+
+Demo accounts (use them if they exist in the database). For anything that creates
+data, prefer fresh `@e2e.test` accounts.
 
 | Role         | Email                  | Password       |
 | ------------ | ---------------------- | -------------- |
@@ -25,6 +41,10 @@ confusing state, re-seed and carry on — it takes seconds.
 | **Attendee** | `rahul@eventease.demo` | `eventease123` |
 
 ### Seeded events
+
+The numbers below, and those quoted in A2, B9, C4, C5, C12, C13, G1 and G6, come from
+freshly seeded demo data. On the live database they will differ — check that the
+numbers on related screens agree with each other rather than matching these exactly.
 
 | Event                             | Capacity | Registered | State             |
 | --------------------------------- | -------- | ---------- | ----------------- |
@@ -202,53 +222,168 @@ Needs a **second host**. Create one via C2 (e.g. `host2@uat.test`).
 
 ---
 
+## Suite I — Profiles
+
+Use a fresh attendee account (`…@e2e.test`), and a host account for I15.
+
+| ID  | Scenario                     | Steps                                                                                                    | Expected result                                                                                                          | ✓   |
+| --- | ---------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | --- |
+| I1  | Profile needs an account     | Signed out, open `/profile`                                                                              | Redirected to `/signin?next=%2Fprofile`                                                                                  |     |
+| I2  | Profile opens from the menu  | Sign in → avatar menu → profile link                                                                     | `/profile` opens: About you, Skills & hobbies, Links & preferences, a live profile card and a "Profile N% complete" ring |     |
+| I3  | Upload a photo               | Click the photo area → choose a JPEG/PNG under 300 KB                                                    | Preview appears at once; badge reads `N KB / 300 KB`; the card shows the photo                                           |     |
+| I4  | Big photo is optimised       | Choose a phone photo of several MB                                                                       | "Optimising…" then "Uploading…"; the stored size on the badge is ≤ 300 KB                                                |     |
+| I5  | A non-image is refused       | Rename a `.txt` file to `.png` and choose it                                                             | An error under the photo; nothing is uploaded                                                                            |     |
+| I6  | Remove the photo             | Click **Remove**                                                                                         | The photo is gone from the card and the navbar                                                                           |     |
+| I7  | Bad mobile number refused    | Enter `12345` → **Save profile**                                                                         | "Enter a valid mobile number, e.g. 98765 43210"; nothing saved                                                           |     |
+| I8  | Mobile number formats        | Enter **your own** number as `98765 43210`, then `+91 98765 43210`, then `09876543210`, saving each time | All accepted and shown in one consistent `+91` format                                                                    |     |
+| I9  | Skills and hobbies           | Type a skill → Enter, add two more; remove one with its ×                                                | Chips appear and disappear; the card mirrors them                                                                        |     |
+| I10 | Links saved                  | LinkedIn `linkedin.com/in/your-name`, GitHub `your-username` → save                                      | "Profile saved ✓"; both still there after a reload                                                                       |     |
+| I11 | Bad link refused             | LinkedIn `not a link` → save                                                                             | "Enter a valid link"                                                                                                     |     |
+| I12 | Call language                | Pick **ગુજરાતી** → save                                                                                  | Saved; the next registration form has Gujarati pre-selected under "Call me in"                                           |     |
+| I13 | Everything survives a reload | Fill every field → save → hard-refresh                                                                   | Every field, chip, link, language and the photo are still there                                                          |     |
+| I14 | Completeness ring            | Fill fields one by one                                                                                   | The "Profile N% complete" ring rises as each is added                                                                    |     |
+| I15 | Hosts have a profile too     | As a host, open `/profile`, fill **Club or organization** → save                                         | Saved; works exactly like the attendee profile                                                                           |     |
+
+---
+
+## Suite J — Richer events, images and editing
+
+Host in the normal window, attendee in incognito. Create every event in the future.
+
+| ID  | Scenario                         | Steps                                                                           | Expected result                                                                                                    | ✓   |
+| --- | -------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | --- |
+| J1  | Kind of event                    | `/events/new` → click each kind (Workshop, Competition, Hackathon…)             | One is selected at a time; the preview card shows its emoji and label                                              |     |
+| J2  | Competitions start with prizes   | On a fresh form pick **Hackathon**                                              | Prize rows **🥇 1st place**, **🥈 2nd place**, **🥉 3rd place** appear with empty rewards                          |     |
+| J3  | A prize needs a reward           | Leave a reward empty → **Create event**                                         | "Say what the winner gets"; nothing is created                                                                     |     |
+| J4  | Add and remove prizes            | **+ Add prize** repeatedly; remove one with ×                                   | Rows add up to 10 (then the button disables) and remove individually                                               |     |
+| J5  | Start and end time               | Starts 10:00, Ends 18:00 the same day → create                                  | The card and registration page show the start and the end time                                                     |     |
+| J6  | End before start refused         | Ends 09:00 with a 10:00 start → **Create event**                                | "The end must be after the start"; nothing is created                                                              |     |
+| J7  | Quick dates and durations        | Click a quick-date chip under Starts at, then a duration chip under Ends at     | Both fields fill in; the end equals the start plus that duration                                                   |     |
+| J8  | Entry fee hint                   | Fee `150`, then `0`                                                             | Hints read "Shown as ₹150 — collected at the venue." and "0 means the event is free."                              |     |
+| J9  | Fee shown to attendees           | Open the card on `/events` and the registration page                            | Card: **🎟 ₹150** (free events **🎟 Free**). Register page: "₹150 at the venue"                                      |     |
+| J10 | Cover image                      | Choose a banner image → create                                                  | The cover shows on the event card, the registration page and the host dashboard                                    |     |
+| J11 | Large cover optimised            | Choose a multi-MB banner                                                        | Optimised in the browser; stored at ≤ 300 KB                                                                       |     |
+| J12 | Edit an event                    | Event dashboard → **Edit** → change the venue → **Save changes**                | Back on the dashboard (`?updated=1`); the new venue shows everywhere                                               |     |
+| J13 | Editing keeps registrations      | Edit an event that has registrations and check-ins                              | Counts, tickets and gate log are unchanged                                                                         |     |
+| J14 | Only the owner can edit          | As a second host, open `/events/<id>/edit`                                      | Redirected to `/host?denied=owner`                                                                                 |     |
+| J15 | Sign-in returns to the edit page | Signed out, open `/events/<id>/edit` → sign in as the owner                     | Lands on the edit page, not the event dashboard                                                                    |     |
+| J16 | Registration is pre-filled       | Attendee with a full profile opens `/events/<id>/register`                      | Name, email (read-only), student ID, department, mobile and "Call me in" come from the profile; mobile is optional |     |
+| J17 | Delete an event                  | On a **test** event's dashboard → **Delete event** → **Yes, delete everything** | The event, its registrations and gate log are gone from `/host` and `/events`; **Cancel** backs out safely         |     |
+
+---
+
+## Suite K — Aanaya reminder calls
+
+Run the app with `npm run dev:calls`. **Only call numbers whose owners agreed** —
+register a `@e2e.test` attendee with your own mobile number for K10–K22.
+
+| ID  | Scenario                             | Steps                                                                                      | Expected result                                                                                                                                                                         | ✓   |
+| --- | ------------------------------------ | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- |
+| K1  | Console is for the event's host only | Open `/events/<id>/calls` signed out; as an attendee; as another host                      | Host sign-in (returning to the console) / `/dashboard?denied=host` / `/host?denied=owner`                                                                                               |     |
+| K2  | Console opens                        | Event dashboard → **📞 Reminder calls**                                                    | "Reminder calls", "Gujarati · Hindi · English — every call under 20 seconds.", stats tiles and a row per registrant                                                                     |     |
+| K3  | Setup checklist without a tunnel     | Stop the app, run plain `npm run dev`, reopen the console                                  | "Finish setting up Aanaya" lists the public webhook URL as missing; **📞 Call everyone one by one** is disabled                                                                         |     |
+| K4  | Setup complete                       | Back to `npm run dev:calls`, reload                                                        | No checklist; Call buttons enabled for people with a number                                                                                                                             |     |
+| K5  | No number, no call                   | Look at a registrant without a mobile number                                               | Row reads **No number** with no Call button; they're left out of "Call everyone"                                                                                                        |     |
+| K6  | Search and filter                    | Search by name, email or number; use the filter                                            | The list narrows to matching registrants                                                                                                                                                |     |
+| K7  | Hear the Hindi message               | 🎧 panel → **हिन्दी** → **Generate Hindi preview**                                         | Devanagari script naming the event, its day and time, and the minutes-early ask; audio plays in Aanaya's voice; badges show the message length, reply window and **✓ Call ≈ N s / 20s** |     |
+| K8  | Gujarati and English                 | Repeat K7 with **ગુજરાતી** and **English**                                                 | Script in that language and writing system; still ✓ under 20 s                                                                                                                          |     |
+| K9  | Regenerate                           | **Regenerate & play**                                                                      | A fresh clip plays                                                                                                                                                                      |     |
+| K10 | Call one person                      | Register yourself with your own mobile → console → **Call** on your row                    | Row moves Dialling… → Ringing… → On the call → **Reached**; your phone rings from the Vobiz number; Aanaya speaks your language; the line cuts within 20 s                              |     |
+| K11 | "Yes" is understood                  | Answer and say "haan, main aa jaunga" (or "yes, I'll come")                                | After the call the row shows **👍 Coming** and what you said                                                                                                                            |     |
+| K12 | "No" is understood                   | Call again; say "nahi aa paunga" (or "sorry, I can't come")                                | **✋ Can't come**                                                                                                                                                                       |     |
+| K13 | Silence                              | Call again; say nothing                                                                    | **No reply**                                                                                                                                                                            |     |
+| K14 | Not answered                         | Call again; decline it, then repeat and let it ring out                                    | **Busy / declined**, then **No answer** (gives up after about 30 s of ringing)                                                                                                          |     |
+| K15 | Call again                           | On a reached row click **Call again**                                                      | A new call is placed and logged                                                                                                                                                         |     |
+| K16 | Everyone, one by one                 | Two consenting numbers → **📞 Call everyone one by one (2)**                               | Strictly one call at a time; "N waiting in the queue" counts down                                                                                                                       |     |
+| K17 | Skip people already reached          | Tick **Skip people already reached** → call everyone                                       | Reached people aren't called again; if all were reached the message says to untick the box                                                                                              |     |
+| K18 | Stop the queue                       | During K16 click **Stop queue**                                                            | "Stopped — N queued call(s) canceled."; waiting rows read **Canceled**                                                                                                                  |     |
+| K19 | Language for one batch               | Choose **English** in the batch language menu → call                                       | Aanaya speaks English whatever the attendee chose                                                                                                                                       |     |
+| K20 | Each attendee's language             | Event setting **Each attendee's choice**; attendee chose ગુજરાતી                           | That call is in Gujarati                                                                                                                                                                |     |
+| K21 | Save a schedule                      | Console → **Before the start** → pick a time → **Save schedule**; then try under 5 minutes | "Saved"; under 5 minutes is refused ("Call at least 5 minutes before the start")                                                                                                        |     |
+| K22 | A scheduled call fires               | Event starting in ~20 min, schedule 15 min before, your own number registered, app running | The call arrives on its own at start − 15 min, once only                                                                                                                                |     |
+| K23 | Scheduler can be switched off        | Uncomment `REMINDER_SCHEDULER="off"`, restart, repeat K22                                  | No automatic call; manual **Call** still works                                                                                                                                          |     |
+| K24 | Forged webhooks rejected             | `curl -X POST "https://<NGROK_DOMAIN>/api/voice/answer?id=x&t=forged"`                     | `403`                                                                                                                                                                                   |     |
+| K25 | Scheduler endpoint protected         | `curl https://<NGROK_DOMAIN>/api/cron/reminders`                                           | `401`                                                                                                                                                                                   |     |
+
+---
+
+## Suite L — Local setup and operations
+
+| ID  | Scenario                       | Steps                                                               | Expected result                                                                                       | ✓   |
+| --- | ------------------------------ | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | --- |
+| L1  | One command starts everything  | `npm run dev:calls`                                                 | Prints **EventEase http://localhost:N** and **Webhooks https://disliking-hulk-bauble.ngrok-free.dev** |     |
+| L2  | Busy port is avoided           | Another app on port 3000, then L1                                   | "Port 3000 is busy, so EventEase runs on 3001."                                                       |     |
+| L3  | Fixed port                     | `PORT=3005 npm run dev:calls`; then again while 3005 is taken       | Runs on 3005; the second time a clear "already in use" error                                          |     |
+| L4  | Same webhook URL every time    | Stop and start twice                                                | The webhook URL never changes (static ngrok domain)                                                   |     |
+| L5  | The tunnel reaches this laptop | Run K24 from another network (e.g. phone hotspot)                   | `403` — the request reached the local app                                                             |     |
+| L6  | Ctrl+C stops both              | Press Ctrl+C                                                        | The app and ngrok both stop; the port is free again                                                   |     |
+| L7  | Separate terminals still work  | `npm run dev` and `npm run tunnel` side by side                     | Same result as L1                                                                                     |     |
+| L8  | Production build               | `npm run build`                                                     | Completes and lists every page and API route                                                          |     |
+| L9  | Unit and integration tests     | `npm test`                                                          | 45 passed, 0 failed                                                                                   |     |
+| L10 | Browser journeys               | With L1 running: `E2E_BASE_URL=http://localhost:N npm run test:e2e` | 5 passed; the teardown line reports what it removed                                                   |     |
+| L11 | Test data cleanup              | After a manual session: `npm run test:cleanup`                      | Reports the `@e2e.test` profiles, auth users and files it removed                                     |     |
+
+---
+
 ## Already covered by automated tests
 
-These run in seconds and don't need manual repetition — run them first and you can
+These run in minutes and don't need manual repetition — run them first and you can
 skip the matching manual cases.
 
 ```bash
-npm test          # 18 integration tests, ~35s
-npm run test:e2e  # 2 full browser journeys, ~40s
+npm test                                             # 45 unit + integration tests, ~40 s
+npm run dev:calls                                    # terminal 1 — note the port
+E2E_BASE_URL=http://localhost:3001 npm run test:e2e  # terminal 2 — 5 browser journeys, ~1.5 min
 ```
 
-Both suites **clean up after themselves** — every account, event, registration and
-gate log they create is removed when they finish, so the demo data is byte-for-byte
-unchanged. Run them as often as you like, including right before a demo.
+Both suites **clean up after themselves**: every account, event, registration, gate log,
+uploaded image and generated call audio they create is removed when they finish, so
+the data is left exactly as it was. No test ever places a phone call.
 
-| Automated test                                                                            | Covers                            |
-| ----------------------------------------------------------------------------------------- | --------------------------------- |
-| `npm test` → "DEMO: registers … rejects a second check-in"                                | D2, D3, D6, D7, D8                |
-| `npm test` → "enforces capacity, even with simultaneous registrations"                    | G2 (incl. 15 concurrent sign-ups) |
-| `npm test` → "blocks the same account registering twice"                                  | G3, G4                            |
-| `npm test` → "issues the ticket to the signed-in account, ignoring any email in the body" | D4                                |
-| `npm test` → "admits a ticket exactly once … several gates at the same instant"           | D7 under race conditions          |
-| `npm test` → "accepts sloppy manual entry and rejects unknown or malformed codes"         | E1–E5                             |
-| `npm test` → "rejects a valid ticket at another event's gate without using it up"         | E7, E8                            |
-| `npm test` → "refuses to let one host burn another host's ticket"                         | F5, F6                            |
-| `npm test` → "logs every gate attempt"                                                    | D9, E12                           |
-| `npm run test:e2e` → "host creates an event, attendee registers…"                         | A4, B2, C7, D1–D10, F10           |
-| `npm run test:e2e` → "a host account is turned away at the attendee portal"               | B14, F8                           |
+| Automated test                                                                                     | Covers                                           |
+| -------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `npm test` → "DEMO: registers … rejects a second check-in"                                         | D2, D3, D6, D7, D8                               |
+| `npm test` → "enforces capacity, even with simultaneous registrations"                             | G2 (incl. 15 concurrent sign-ups)                |
+| `npm test` → "blocks the same account registering twice"                                           | G3, G4                                           |
+| `npm test` → "issues the ticket to the signed-in account, ignoring any email in the body"          | D4                                               |
+| `npm test` → "admits a ticket exactly once … several gates at the same instant"                    | D7 under race conditions                         |
+| `npm test` → "accepts sloppy manual entry and rejects unknown or malformed codes"                  | E1–E5                                            |
+| `npm test` → "rejects a valid ticket at another event's gate without using it up"                  | E7, E8                                           |
+| `npm test` → "refuses to let one host burn another host's ticket"                                  | F5, F6                                           |
+| `npm test` → "logs every gate attempt"                                                             | D9, E12                                          |
+| `npm test` → phone numbers, validation                                                             | I7, I8, I11, J3, J6, K21 (rules)                 |
+| `npm test` → reminder script, spoken start time, 20-second budget                                  | K7, K8 (script content and length)               |
+| `npm test` → "understanding replies without the LLM", webhook signatures                           | K11–K13 (fallback), K24                          |
+| `npm run test:e2e` → "host creates an event, attendee registers…"                                  | A4, B2, C7, D1–D10, F10                          |
+| `npm run test:e2e` → "a host account is turned away at the attendee portal"                        | B14, F8                                          |
+| `npm run test:e2e` → "signed-out visitors can't reach profiles, event editing or the call console" | I1, J15, K1 (signed out), K24, K25               |
+| `npm run test:e2e` → "an attendee builds a rich profile with a photo that fits in 300 KB"          | I2–I5, I7, I9–I13                                |
+| `npm run test:e2e` → "a host runs a rich event: details, cover, edits and Aanaya's call console"   | J1–J3, J5, J6, J8–J10, J12, J16, K2, K5, K7, K21 |
 
-**Still manual, and worth the time:** all of Suite A (gates), B1/B8–B13 (attendee
-UI), C4/C12–C16 (host UI), E10/E11 (camera and image scanning), F1–F4/F7 (isolation),
-H1–H10 (non-functional).
+**Still manual, and worth the time:** all of Suite A (gates), B1/B8–B13 (attendee UI),
+C4/C12–C16 (host UI), E10/E11 (camera and image scanning), F1–F4/F7 (isolation),
+H1–H10 (non-functional), I6/I8/I14/I15, J4/J7/J11/J13/J14/J17, **K3–K4 and K6–K23 (real
+calls — only to consenting numbers)**, and Suite L.
 
 ---
 
 ## Sign-off
 
-| Suite                               | Cases  | Passed | Failed | Notes |
-| ----------------------------------- | ------ | ------ | ------ | ----- |
-| A — Access control while signed out | 11     |        |        |       |
-| B — Attendee portal                 | 15     |        |        |       |
-| C — Host portal                     | 16     |        |        |       |
-| D — Core demo scenario              | 10     |        |        |       |
-| E — Check-in gate                   | 12     |        |        |       |
-| F — Cross-account isolation         | 11     |        |        |       |
-| G — Capacity and duplicates         | 6      |        |        |       |
-| H — Non-functional                  | 10     |        |        |       |
-| **Total**                           | **91** |        |        |       |
+| Suite                               | Cases   | Passed | Failed | Notes |
+| ----------------------------------- | ------- | ------ | ------ | ----- |
+| A — Access control while signed out | 11      |        |        |       |
+| B — Attendee portal                 | 15      |        |        |       |
+| C — Host portal                     | 16      |        |        |       |
+| D — Core demo scenario              | 10      |        |        |       |
+| E — Check-in gate                   | 12      |        |        |       |
+| F — Cross-account isolation         | 11      |        |        |       |
+| G — Capacity and duplicates         | 6       |        |        |       |
+| H — Non-functional                  | 10      |        |        |       |
+| I — Profiles                        | 15      |        |        |       |
+| J — Richer events and editing       | 17      |        |        |       |
+| K — Aanaya reminder calls           | 25      |        |        |       |
+| L — Local setup and operations      | 11      |        |        |       |
+| **Total**                           | **159** |        |        |       |
 
 Tester: ................................ Date: ....................
 

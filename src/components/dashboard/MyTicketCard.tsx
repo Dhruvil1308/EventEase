@@ -1,19 +1,28 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { Badge } from "@/components/ui/Badge";
-import { formatDay, formatFullDate, formatMonth, formatTimeShort } from "@/lib/format";
+import { eventEndMs } from "@/lib/event-time";
+import { formatDay, formatEndTime, formatFullDate, formatMonth, formatTimeShort } from "@/lib/format";
 import { themeVars } from "@/lib/themes";
 
 export type MyTicket = {
   code: string;
   checkedInAt: string | null;
-  event: { id: string; name: string; venue: string; startsAt: string; theme: string; hostName: string };
+  event: {
+    id: string;
+    name: string;
+    venue: string;
+    startsAt: string;
+    endsAt: string | null;
+    theme: string;
+    hostName: string;
+    coverUrl: string | null;
+  };
 };
 
 export function MyTicketCard({ ticket, now }: { ticket: MyTicket; now: number }) {
   const { event } = ticket;
-  const started = new Date(event.startsAt).getTime();
-  const ended = started < now - 6 * 3600_000;
+  const ended = eventEndMs(event) < now;
 
   const status = ticket.checkedInAt
     ? { label: "Checked in", tone: "success" as const }
@@ -30,6 +39,13 @@ export function MyTicketCard({ ticket, now }: { ticket: MyTicket; now: number })
         aria-hidden
         className="absolute -top-20 -right-20 h-52 w-52 rounded-full bg-theme opacity-20 blur-3xl transition-opacity duration-700 group-hover:opacity-40"
       />
+      {event.coverUrl && (
+        <div aria-hidden className="absolute inset-x-0 top-0 h-32 overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element -- ≤300 KB storage image */}
+          <img src={event.coverUrl} alt="" loading="lazy" className="h-full w-full object-cover opacity-60" />
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-ink-900" />
+        </div>
+      )}
 
       <header className="relative flex items-start justify-between gap-3">
         <div className="grid h-16 w-14 shrink-0 place-items-center rounded-2xl bg-theme text-ink-950 shadow-lg">
@@ -44,6 +60,7 @@ export function MyTicketCard({ ticket, now }: { ticket: MyTicket; now: number })
       <h3 className="relative mt-5 font-display text-lg leading-snug font-semibold text-white">{event.name}</h3>
       <p className="relative mt-1 text-sm text-zinc-400">
         {event.venue} · {formatTimeShort(event.startsAt)}
+        {event.endsAt ? ` – ${formatEndTime(event.startsAt, event.endsAt)}` : ""}
       </p>
       <p className="relative mt-0.5 text-xs text-zinc-500">
         {formatFullDate(event.startsAt)} · hosted by {event.hostName}

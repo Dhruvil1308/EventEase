@@ -92,15 +92,15 @@ export async function requireAttendee(destination?: string): Promise<SessionProf
   return profile;
 }
 
-/** A host that owns this event, 404-style redirect otherwise. */
-export async function requireEventOwner(eventId: string): Promise<SessionProfile> {
+/** A host that owns this event, 404-style redirect otherwise. Sign-in returns to `destination`. */
+export async function requireEventOwner(eventId: string, destination = `/events/${eventId}`): Promise<SessionProfile> {
   // The two lookups don't depend on each other, so they share one round trip.
   const [profile, event] = await Promise.all([
     getCurrentProfile(),
     prisma.event.findUnique({ where: { id: eventId }, select: { hostId: true } }),
   ]);
 
-  if (!profile) redirect(`${SIGN_IN_FOR[Role.HOST]}${nextParam(`/events/${eventId}`)}`);
+  if (!profile) redirect(`${SIGN_IN_FOR[Role.HOST]}${nextParam(destination)}`);
   if (profile.role !== Role.HOST) redirect(`${HOME_FOR[profile.role]}?denied=host`);
   if (!event) redirect("/host?missing=1");
   if (event.hostId !== profile.id) redirect("/host?denied=owner");
