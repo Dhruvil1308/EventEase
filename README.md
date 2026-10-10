@@ -620,7 +620,7 @@ E2E_BASE_URL=http://localhost:3001 npm run test:e2e   # terminal 2 — 5 browser
 
 ```text
 prisma/                 schema, migrations, seed
-scripts/                dev-calls.mjs · tunnel.mjs · setup-storage.mts · cleanup-test-data.ts
+scripts/                dev-calls.mjs · tunnel.mjs · setup-storage.mts · confirm-wipe.mjs
 src/
 ├── app/                pages (App Router) + REST route handlers under api/
 │   ├── api/voice/      Vobiz webhooks: answer · ring · hangup · recording

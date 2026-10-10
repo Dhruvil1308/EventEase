@@ -8,9 +8,9 @@
  *
  * Only `@e2e.test` accounts are touched, so real users and demo data are safe.
  */
-import teardown from "../tests/e2e/global-teardown";
+import teardown from "./global-teardown";
 
-teardown().catch((error) => {
+teardown().catch((error: unknown) => {
   console.error(error);
   process.exit(1);
 });
